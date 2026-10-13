@@ -1,0 +1,25 @@
+[package]
+name = "remoteplayforever"
+version = "0.1.0"
+edition = "2024"
+description = "Steam Remote Play Together for any game, Steam or not"
+license = "MIT"
+repository = "https://github.com/KayZedd/remoteplayforever"
+readme = "README.md"
+keywords = ["steam", "remote-play", "remote-play-together", "gaming"]
+categories = ["games"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+winreg = "0.56"
+rfd = "0.17"
+colored = "2"
+anyhow = "1"
+windows-sys = { version = "0.59", features = [
+    "Win32_System_Console",
+    "Win32_System_LibraryLoader",
+    "Win32_Foundation",
+] }
+eframe = "0.36"
