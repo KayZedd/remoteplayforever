@@ -17,7 +17,7 @@ winreg = "0.56"
 rfd = "0.17"
 colored = "2"
 anyhow = "1"
-windows-sys = { version = "0.59", features = [
+windows-sys = { version = "0.61", features = [
     "Win32_System_Console",
     "Win32_System_LibraryLoader",
     "Win32_Foundation",
