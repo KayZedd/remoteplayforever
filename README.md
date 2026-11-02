@@ -194,7 +194,7 @@ Layout:
 - [`.github/workflows/release.yml`](.github/workflows/release.yml): pushing a tag `vX.Y.Z` builds the installer and publishes a GitHub release with the installer, the bare `.exe` and `SHA256SUMS.txt`, plus a build provenance attestation for each `.exe`. The tag must match `version` in `Cargo.toml` and `MyAppVersion` in `installer/installer.iss`, otherwise the job fails.
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
 ### Screenshots and social preview
