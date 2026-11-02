@@ -42,7 +42,7 @@ Uruchomić można wszystko, co startuje z `.exe`. Gry, w które ktoś faktycznie
 ## Szybki start
 
 1. Uruchom **Steam** i zaloguj się.
-2. [Zainstaluj](https://github.com/KayZedd/remoteplayforever/releases/latest) i uruchom **RemotePlayForever**.
+2. [Zainstaluj](https://github.com/KayZedd/remoteplayforever/releases/latest) i uruchom **RemotePlayForever**. Bez instalacji? Pobierz `remoteplayforever-X.Y.Z-portable.exe` z tej samej strony i uruchom z dowolnego miejsca (bez skrótu w menu Start i opcji pod prawym przyciskiem).
 3. Na zakładce **Uruchom grę** wybierz `.exe` gry (albo tytuł na zakładce **Gry ze Steam**) i kliknij **Uruchom z Remote Play Together**.
 4. Po kilku sekundach **link dla gościa** jest w schowku. Wyślij go znajomemu.
 5. Zamknij grę albo kliknij **Zakończ sesję**, żeby rozłączyć gości.

@@ -42,7 +42,7 @@ Anything that starts from an `.exe` can be launched. Titles people actually play
 ## Quick start
 
 1. Start **Steam** and sign in.
-2. [Install](https://github.com/KayZedd/remoteplayforever/releases/latest) and run **RemotePlayForever**.
+2. [Install](https://github.com/KayZedd/remoteplayforever/releases/latest) and run **RemotePlayForever**. Prefer no install? Grab `remoteplayforever-X.Y.Z-portable.exe` from the same page and run it from anywhere (no Start menu shortcut or right-click entry).
 3. On the **Launch** tab pick the game's `.exe` (or pick a title on the **Steam games** tab) and press **Launch with Remote Play Together**.
 4. A few seconds later the **guest link** is on your clipboard. Send it to a friend.
 5. Close the game or press **End session** to disconnect the guests.

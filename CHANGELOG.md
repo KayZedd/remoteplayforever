@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- The installer-free release asset is now named `remoteplayforever-X.Y.Z-portable.exe` (was `-x64.exe`) and is described in the release notes and README.
+
 ## [0.1.1] - 2026-11-02
 
 ### Added

@@ -55,7 +55,7 @@ jobs:
           $version = "${{ github.ref_name }}".TrimStart("v")
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item "dist\RemotePlayForever-Setup-$version.exe" release\
-          Copy-Item target\release\remoteplayforever.exe "release\remoteplayforever-$version-x64.exe"
+          Copy-Item target\release\remoteplayforever.exe "release\remoteplayforever-$version-portable.exe"
           Get-ChildItem release\*.exe | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
           } | Set-Content -Encoding ascii release\SHA256SUMS.txt
@@ -75,6 +75,8 @@ jobs:
           version=${TAG#v}
           cat > release-notes.md <<EOF
           **[Download RemotePlayForever-Setup-$version.exe](https://github.com/$REPO/releases/download/$TAG/RemotePlayForever-Setup-$version.exe)** (Windows x64). Changes: [CHANGELOG.md](https://github.com/$REPO/blob/$TAG/CHANGELOG.md).
+
+          No install wanted? \`remoteplayforever-$version-portable.exe\` is the same program as a single file: run it from anywhere. It skips the Start menu shortcut, the Explorer right-click entry and the uninstaller.
 
           Built by GitHub Actions from this tag. Verify the download:
           \`\`\`
