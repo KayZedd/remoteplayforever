@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,7 +17,7 @@ jobs:
     name: Build installer and publish release
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Check tag matches Cargo.toml and installer.iss
         shell: pwsh
@@ -59,8 +61,31 @@ jobs:
           } | Set-Content -Encoding ascii release\SHA256SUMS.txt
           Get-Content release\SHA256SUMS.txt
 
-      - uses: softprops/action-gh-release@v2
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*.exe
+
+      - name: Write release notes header
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          version=${TAG#v}
+          cat > release-notes.md <<EOF
+          **[Download RemotePlayForever-Setup-$version.exe](https://github.com/$REPO/releases/download/$TAG/RemotePlayForever-Setup-$version.exe)** (Windows x64). Changes: [CHANGELOG.md](https://github.com/$REPO/blob/$TAG/CHANGELOG.md).
+
+          Built by GitHub Actions from this tag. Verify the download:
+          \`\`\`
+          gh attestation verify RemotePlayForever-Setup-$version.exe --repo $REPO
+          \`\`\`
+          or compare \`Get-FileHash\` with \`SHA256SUMS.txt\`.
+          EOF
+
+      - uses: softprops/action-gh-release@v3
         with:
           files: release/*
+          body_path: release-notes.md
           generate_release_notes: true
           fail_on_unmatched_files: true
