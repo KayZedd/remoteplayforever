@@ -1,8 +1,14 @@
 # RemotePlayForever
 
+[![Release](https://img.shields.io/github/v/release/KayZedd/remoteplayforever?color=blue)](https://github.com/KayZedd/remoteplayforever/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
+
 Steam Remote Play Together for any game: Steam games that never enabled it, non-Steam games, emulators, GOG and Epic titles.
 
 Pick a game, press launch, send the link. Your friend joins from Steam or the free Steam Link app and needs neither the game nor a fast computer.
+
+**[Download Latest Installer (.exe)](https://github.com/KayZedd/remoteplayforever/releases/latest)**
 
 - No donor game, nothing to configure in Steam.
 - Nothing is changed in the game's folder.
@@ -88,6 +94,7 @@ remoteplayforever.exe --list-games
 - A non-Steam game is shared as the **whole desktop**, not a single window.
 - For a Steam game the app starts the game's default launch option. Picking another `.exe` from its folder (a mod loader, say) still starts the game through Steam.
 - It relies on Steam internals. A large client update may need a new release. Each session is logged to `%LOCALAPPDATA%\RemotePlayForever\launch.log`.
+- Antivirus false positives: Because the app attaches to Steam and loads overlay modules into other processes, some heuristic antivirus engines might flag it. Binaries are built transparently via GitHub Actions.
 - Not affiliated with Valve. Use at your own risk.
 
 ### For maintainers: when Valve changes a signature
