@@ -197,11 +197,6 @@ Layout:
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-### Screenshots and social preview
-
-- `docs/img/*.png` are taken from the real app under wine on Linux with a fake Steam library: `docs/screenshots/capture.sh` (see the comments at its top).
-- `docs/img/social-preview.png` (upload it in **Settings -> General -> Social preview**) is rendered from [`docs/social-preview.html`](docs/social-preview.html) by `docs/make-social-preview.sh`.
-
 ## Credits
 
 - [RemotePlayWhatever](https://github.com/m4dEngi/RemotePlayWhatever) by m4dEngi: the original technique.
