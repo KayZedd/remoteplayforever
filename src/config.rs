@@ -59,12 +59,11 @@ impl Config {
 
     pub fn load() -> Self {
         let path = Self::config_path();
-        if path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(cfg) = serde_json::from_str::<Config>(&content) {
-                    return cfg;
-                }
-            }
+        if path.exists()
+            && let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(cfg) = serde_json::from_str::<Config>(&content)
+        {
+            return cfg;
         }
         let default = Self::default();
         let _ = default.save();
@@ -76,8 +75,10 @@ impl Config {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let content = serde_json::to_string_pretty(self).context("Could not serialize the config")?;
-        std::fs::write(&path, content).with_context(|| format!("Could not write {}", path.display()))?;
+        let content =
+            serde_json::to_string_pretty(self).context("Could not serialize the config")?;
+        std::fs::write(&path, content)
+            .with_context(|| format!("Could not write {}", path.display()))?;
         Ok(())
     }
 
@@ -94,12 +95,15 @@ impl Config {
         // Remove previous entry with same path
         self.recent_games.retain(|g| g.path != path_buf);
 
-        self.recent_games.insert(0, RecentGame {
-            name,
-            path: path_buf,
-            args: args.to_vec(),
-            last_played: now,
-        });
+        self.recent_games.insert(
+            0,
+            RecentGame {
+                name,
+                path: path_buf,
+                args: args.to_vec(),
+                last_played: now,
+            },
+        );
 
         // Limit to 15 recent games
         if self.recent_games.len() > 15 {
@@ -161,7 +165,11 @@ fn format_utc(secs: u64) -> String {
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
 
-    format!("{year:04}-{month:02}-{day:02} {:02}:{:02}", rem / 3600, (rem % 3600) / 60)
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}",
+        rem / 3600,
+        (rem % 3600) / 60
+    )
 }
 
 #[cfg(test)]
@@ -197,8 +205,19 @@ mod tests {
 
     #[test]
     fn guest_inputs_follow_settings() {
-        let cfg = Config { guest_keyboard: false, guest_controller_mode: GuestControllerMode::Enabled, ..Config::default() };
+        let cfg = Config {
+            guest_keyboard: false,
+            guest_controller_mode: GuestControllerMode::Enabled,
+            ..Config::default()
+        };
         let inputs = cfg.guest_inputs(Path::new("game.exe"));
-        assert_eq!(inputs, GuestInputs { keyboard: false, mouse: true, controller: true });
+        assert_eq!(
+            inputs,
+            GuestInputs {
+                keyboard: false,
+                mouse: true,
+                controller: true
+            }
+        );
     }
 }

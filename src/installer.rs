@@ -9,9 +9,18 @@ pub fn create_desktop_shortcut(game_name: &str, game_path: &Path) -> Result<Path
     let desktop = desktop_dir().unwrap_or_else(|| PathBuf::from("."));
     let shortcut_file = desktop.join(shortcut_file_name(game_name));
 
-    std::fs::write(&shortcut_file, shortcut_script(&current_exe, game_path)).with_context(|| {
-        format!("{}: {}", tr("Could not write the shortcut", "Nie udało się zapisać skrótu"), shortcut_file.display())
-    })?;
+    std::fs::write(&shortcut_file, shortcut_script(&current_exe, game_path)).with_context(
+        || {
+            format!(
+                "{}: {}",
+                tr(
+                    "Could not write the shortcut",
+                    "Nie udało się zapisać skrótu"
+                ),
+                shortcut_file.display()
+            )
+        },
+    )?;
 
     Ok(shortcut_file)
 }
@@ -26,7 +35,11 @@ fn shortcut_file_name(game_name: &str) -> String {
 }
 
 fn shortcut_script(app_exe: &Path, game_path: &Path) -> String {
-    format!("@echo off\r\nstart \"\" \"{}\" --run \"{}\"\r\n", app_exe.display(), game_path.display())
+    format!(
+        "@echo off\r\nstart \"\" \"{}\" --run \"{}\"\r\n",
+        app_exe.display(),
+        game_path.display()
+    )
 }
 
 fn desktop_dir() -> Option<PathBuf> {
@@ -40,13 +53,22 @@ mod tests {
 
     #[test]
     fn shortcut_name_drops_characters_windows_rejects() {
-        assert_eq!(shortcut_file_name("LEGO: Marvel? 2"), "LEGO Marvel 2 (Remote Play).bat");
+        assert_eq!(
+            shortcut_file_name("LEGO: Marvel? 2"),
+            "LEGO Marvel 2 (Remote Play).bat"
+        );
         assert_eq!(shortcut_file_name("gra_1-x"), "gra_1-x (Remote Play).bat");
     }
 
     #[test]
     fn shortcut_script_quotes_both_paths() {
-        let script = shortcut_script(Path::new("C:/Program Files/rpf.exe"), Path::new("D:/My Games/game.exe"));
-        assert_eq!(script, "@echo off\r\nstart \"\" \"C:/Program Files/rpf.exe\" --run \"D:/My Games/game.exe\"\r\n");
+        let script = shortcut_script(
+            Path::new("C:/Program Files/rpf.exe"),
+            Path::new("D:/My Games/game.exe"),
+        );
+        assert_eq!(
+            script,
+            "@echo off\r\nstart \"\" \"C:/Program Files/rpf.exe\" --run \"D:/My Games/game.exe\"\r\n"
+        );
     }
 }

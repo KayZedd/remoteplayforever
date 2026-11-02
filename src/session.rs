@@ -57,7 +57,9 @@ impl HostEvent {
             HostEvent::Status(s) => format!("STATUS {}", one_line(s)),
             HostEvent::Link(u) => format!("LINK {}", one_line(u)),
             HostEvent::GuestConnected => "GUEST_CONNECTED".to_string(),
-            HostEvent::Player { slot, steam, name } => format!("PLAYER {slot} {steam} {}", one_line(name)),
+            HostEvent::Player { slot, steam, name } => {
+                format!("PLAYER {slot} {steam} {}", one_line(name))
+            }
             HostEvent::Error(s) => format!("ERROR {}", one_line(s)),
             HostEvent::Ready => "READY".to_string(),
             HostEvent::Stopped => "STOPPED".to_string(),
@@ -88,7 +90,7 @@ impl HostEvent {
 }
 
 impl HostCommand {
-    pub fn to_line(&self) -> String {
+    pub fn to_line(self) -> String {
         match self {
             HostCommand::AddLink => "ADD".to_string(),
             HostCommand::Stop => "STOP".to_string(),
@@ -98,7 +100,7 @@ impl HostCommand {
                     InputKind::Mouse => "MOUSE",
                     InputKind::Controller => "CTRL",
                 };
-                format!("{k} {}", u8::from(*on))
+                format!("{k} {}", u8::from(on))
             }
         }
     }
@@ -134,12 +136,18 @@ impl Session {
         if desktop_stream {
             cmd.arg("--desktop-stream");
         }
-        for (allowed, flag) in [(inputs.keyboard, "--no-keyboard"), (inputs.mouse, "--no-mouse"), (inputs.controller, "--no-controller")] {
+        for (allowed, flag) in [
+            (inputs.keyboard, "--no-keyboard"),
+            (inputs.mouse, "--no-mouse"),
+            (inputs.controller, "--no-controller"),
+        ] {
             if !allowed {
                 cmd.arg(flag);
             }
         }
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
 
         #[cfg(windows)]
         {
@@ -148,7 +156,10 @@ impl Session {
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let mut child = cmd.spawn().context(tr("Could not start the Remote Play session host", "Nie udało się uruchomić hosta sesji Remote Play"))?;
+        let mut child = cmd.spawn().context(tr(
+            "Could not start the Remote Play session host",
+            "Nie udało się uruchomić hosta sesji Remote Play",
+        ))?;
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().context("session host has no stdout")?;
 
@@ -156,15 +167,19 @@ impl Session {
         std::thread::spawn(move || {
             for line in BufReader::new(stdout).lines() {
                 let Ok(line) = line else { break };
-                if let Some(ev) = HostEvent::parse(&line) {
-                    if tx.send(ev).is_err() {
-                        break;
-                    }
+                if let Some(ev) = HostEvent::parse(&line)
+                    && tx.send(ev).is_err()
+                {
+                    break;
                 }
             }
         });
 
-        Ok(Self { child, stdin, events })
+        Ok(Self {
+            child,
+            stdin,
+            events,
+        })
     }
 
     pub fn send(&mut self, cmd: HostCommand) {
@@ -206,7 +221,11 @@ mod tests {
             HostEvent::Status("Creating the group".into()),
             HostEvent::Link("https://s.team/remoteplay/connect/abc".into()),
             HostEvent::GuestConnected,
-            HostEvent::Player { slot: 2, steam: 76561198000000001, name: "Player 2".into() },
+            HostEvent::Player {
+                slot: 2,
+                steam: 76561198000000001,
+                name: "Player 2".into(),
+            },
             HostEvent::Error("Steam is not running".into()),
             HostEvent::Ready,
             HostEvent::Stopped,

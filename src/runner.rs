@@ -31,7 +31,11 @@ pub fn get_log_path() -> PathBuf {
 pub fn log(msg: &str) {
     use std::io::Write;
     let path = get_log_path();
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -119,16 +123,39 @@ impl ActiveLaunch {
 pub fn start_launch(target: &Path, args: &[String], inputs: GuestInputs) -> Result<ActiveLaunch> {
     let target = clean_target_path(target);
     if !target.exists() {
-        log(&format!("Error: target executable does not exist: {:?}", target));
-        anyhow::bail!("{}: {}", tr("The game executable does not exist", "Plik wykonywalny gry nie istnieje"), target.display());
+        log(&format!(
+            "Error: target executable does not exist: {:?}",
+            target
+        ));
+        anyhow::bail!(
+            "{}: {}",
+            tr(
+                "The game executable does not exist",
+                "Plik wykonywalny gry nie istnieje"
+            ),
+            target.display()
+        );
     }
     if crate::steam::active_user() == 0 {
-        anyhow::bail!("{}", tr("Steam is not running or you are not signed in. Start Steam and try again.", "Steam nie jest uruchomiony albo nie jesteś zalogowany. Uruchom Steam i spróbuj ponownie."));
+        anyhow::bail!(
+            "{}",
+            tr(
+                "Steam is not running or you are not signed in. Start Steam and try again.",
+                "Steam nie jest uruchomiony albo nie jesteś zalogowany. Uruchom Steam i spróbuj ponownie."
+            )
+        );
     }
 
     let plan = LaunchPlan::for_target(&target);
-    let game_name = target.file_stem().and_then(|s| s.to_str()).unwrap_or("Game").to_string();
-    log(&format!("start_launch: {:?} args={:?} plan={:?} inputs={:?}", target, args, plan, inputs));
+    let game_name = target
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Game")
+        .to_string();
+    log(&format!(
+        "start_launch: {:?} args={:?} plan={:?} inputs={:?}",
+        target, args, plan, inputs
+    ));
 
     let (event_tx, events) = mpsc::channel();
     let (commands, command_rx) = mpsc::channel();
@@ -141,12 +168,24 @@ pub fn start_launch(target: &Path, args: &[String], inputs: GuestInputs) -> Resu
         let _ = event_tx.send(HostEvent::Stopped);
     });
 
-    Ok(ActiveLaunch { events, commands, plan, game_name })
+    Ok(ActiveLaunch {
+        events,
+        commands,
+        plan,
+        game_name,
+    })
 }
 
 enum Game {
-    Steam { appid: u32, misses: u32 },
-    Child { child: std::process::Child, started: Instant, detached: bool },
+    Steam {
+        appid: u32,
+        misses: u32,
+    },
+    Child {
+        child: std::process::Child,
+        started: Instant,
+        detached: bool,
+    },
 }
 
 impl Game {
@@ -155,14 +194,25 @@ impl Game {
         match self {
             // RunningAppID flickers while Steam swaps processes (launchers); require a few misses
             Game::Steam { appid, misses } => {
-                *misses = if crate::steam::running_appid() == *appid { 0 } else { *misses + 1 };
+                *misses = if crate::steam::running_appid() == *appid {
+                    0
+                } else {
+                    *misses + 1
+                };
                 *misses < 5
             }
             Game::Child { detached: true, .. } => true,
-            Game::Child { child, started, detached } => match child.try_wait() {
+            Game::Child {
+                child,
+                started,
+                detached,
+            } => match child.try_wait() {
                 Ok(None) => true,
                 Ok(Some(exit)) if started.elapsed() < LAUNCHER_HANDOFF => {
-                    log(&format!("Start process exited after {:?} ({exit}); treating it as a launcher", started.elapsed()));
+                    log(&format!(
+                        "Start process exited after {:?} ({exit}); treating it as a launcher",
+                        started.elapsed()
+                    ));
                     let _ = events.send(HostEvent::Status(
                         tr("The start process exited right away (a launcher). The session stays open until you end it.", "Proces startowy zakończył się od razu (launcher). Sesja trwa do ręcznego zakończenia.").into(),
                     ));
@@ -189,7 +239,11 @@ fn wait_unless_stopped(duration: Duration, commands: &Receiver<HostCommand>) -> 
 
 /// Command that starts `target` from its own folder (batch files go through cmd.exe).
 pub fn command_for(target: &Path) -> std::process::Command {
-    let ext = target.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = target
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     let mut command = if ext == "bat" || ext == "cmd" {
         let mut cmd = std::process::Command::new("cmd.exe");
         cmd.arg("/c").arg(target);
@@ -206,14 +260,27 @@ pub fn command_for(target: &Path) -> std::process::Command {
 fn spawn_external(target: &Path, args: &[String]) -> Result<std::process::Child> {
     let exe = std::env::current_exe().context("current_exe")?;
     let mut command = std::process::Command::new(exe);
-    command.arg("--overlay-launch").arg(NON_STEAM_SESSION_APPID.to_string()).arg(target).args(args);
+    command
+        .arg("--overlay-launch")
+        .arg(NON_STEAM_SESSION_APPID.to_string())
+        .arg(target)
+        .args(args);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    command.spawn().with_context(|| format!("{}: {}", tr("Could not start the process", "Nie udało się uruchomić procesu"), target.display()))
+    command.spawn().with_context(|| {
+        format!(
+            "{}: {}",
+            tr(
+                "Could not start the process",
+                "Nie udało się uruchomić procesu"
+            ),
+            target.display()
+        )
+    })
 }
 
 fn run_launch(
@@ -232,12 +299,25 @@ fn run_launch(
     let mut game = match plan {
         LaunchPlan::SteamApp { appid } => {
             if crate::steam::running_appid() != appid {
-                status(format!("{} (AppID {appid})...", tr("Starting the game through Steam", "Uruchamianie gry przez Steam")));
+                status(format!(
+                    "{} (AppID {appid})...",
+                    tr(
+                        "Starting the game through Steam",
+                        "Uruchamianie gry przez Steam"
+                    )
+                ));
                 crate::steam::launch_steam_app(appid, args)?;
                 let deadline = Instant::now() + STEAM_LAUNCH_TIMEOUT;
                 while crate::steam::running_appid() != appid {
                     if Instant::now() > deadline {
-                        anyhow::bail!("{} (AppID {appid}, {} s)", tr("Steam did not start the game in time", "Steam nie uruchomił gry na czas"), STEAM_LAUNCH_TIMEOUT.as_secs());
+                        anyhow::bail!(
+                            "{} (AppID {appid}, {} s)",
+                            tr(
+                                "Steam did not start the game in time",
+                                "Steam nie uruchomił gry na czas"
+                            ),
+                            STEAM_LAUNCH_TIMEOUT.as_secs()
+                        );
                     }
                     if !wait_unless_stopped(Duration::from_millis(500), commands) {
                         return Ok(());
@@ -247,14 +327,28 @@ fn run_launch(
             Game::Steam { appid, misses: 0 }
         }
         LaunchPlan::External => {
-            status(format!("{} {}...", tr("Starting", "Uruchamianie"), target.display()));
+            status(format!(
+                "{} {}...",
+                tr("Starting", "Uruchamianie"),
+                target.display()
+            ));
             let child = spawn_external(target, args)?;
             log(&format!("Child process spawned, PID: {}", child.id()));
-            Game::Child { child, started: Instant::now(), detached: false }
+            Game::Child {
+                child,
+                started: Instant::now(),
+                detached: false,
+            }
         }
     };
 
-    status(tr("Game started. Opening the Remote Play Together session...", "Gra uruchomiona. Otwieranie sesji Remote Play Together...").into());
+    status(
+        tr(
+            "Game started. Opening the Remote Play Together session...",
+            "Gra uruchomiona. Otwieranie sesji Remote Play Together...",
+        )
+        .into(),
+    );
     if !wait_unless_stopped(GAME_WARMUP, commands) {
         return Ok(());
     }
@@ -285,7 +379,13 @@ fn run_launch(
             }
         }
         if !game.alive(events) {
-            status(tr("Game closed. Ending the session...", "Gra zakończona. Zamykanie sesji...").into());
+            status(
+                tr(
+                    "Game closed. Ending the session...",
+                    "Gra zakończona. Zamykanie sesji...",
+                )
+                .into(),
+            );
             session.stop();
             return Ok(());
         }
@@ -300,9 +400,18 @@ mod tests {
     #[test]
     fn clean_target_path_strips_quotes_and_separators() {
         let expect = PathBuf::from(r"C:\Gry\Gra\gra.exe");
-        assert_eq!(clean_target_path(Path::new(r#""C:\Gry\Gra\gra.exe""#)), expect);
-        assert_eq!(clean_target_path(Path::new(r" C:\Gry\Gra\gra.exe\ ")), expect);
-        assert_eq!(clean_target_path(Path::new(r"'C:\Gry\Gra\gra.exe'")), expect);
+        assert_eq!(
+            clean_target_path(Path::new(r#""C:\Gry\Gra\gra.exe""#)),
+            expect
+        );
+        assert_eq!(
+            clean_target_path(Path::new(r" C:\Gry\Gra\gra.exe\ ")),
+            expect
+        );
+        assert_eq!(
+            clean_target_path(Path::new(r"'C:\Gry\Gra\gra.exe'")),
+            expect
+        );
         assert_eq!(clean_target_path(Path::new(r"C:\Gry\Gra\gra.exe")), expect);
     }
 

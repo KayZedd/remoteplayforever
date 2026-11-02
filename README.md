@@ -1,5 +1,6 @@
 # RemotePlayForever
 
+[![CI](https://github.com/KayZedd/remoteplayforever/actions/workflows/ci.yml/badge.svg)](https://github.com/KayZedd/remoteplayforever/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/KayZedd/remoteplayforever?color=blue)](https://github.com/KayZedd/remoteplayforever/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
@@ -113,6 +114,15 @@ cargo build --release
 ```
 
 The binary is `target\release\remoteplayforever.exe`. For an installer (Inno Setup 6): `./build_installer.ps1`.
+
+### CI and releases
+
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml): every push to `master` and every PR runs `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` and a release build on `windows-latest`. The `.exe` is attached to the run as an artifact.
+- [`.github/workflows/release.yml`](.github/workflows/release.yml): pushing a tag `vX.Y.Z` builds the installer and publishes a GitHub release with the installer, the bare `.exe` and `SHA256SUMS.txt`. The tag must match `version` in `Cargo.toml` and `MyAppVersion` in `installer/installer.iss`, otherwise the job fails.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
 
 Layout:
 
