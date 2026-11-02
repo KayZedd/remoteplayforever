@@ -24,14 +24,20 @@ pub fn run_launcher(game_id: u32, target: &Path, args: &[String]) -> i32 {
 
     match load_overlay() {
         Ok(path) => log(&format!("overlay: loaded {path} for game id {id}")),
-        Err(e) => log(&format!("overlay: not loaded ({e}); starting the game without it")),
+        Err(e) => log(&format!(
+            "overlay: not loaded ({e}); starting the game without it"
+        )),
     }
 
     let mut command = crate::runner::command_for(target);
     command.args(args);
     match command.spawn() {
         Ok(mut child) => {
-            log(&format!("overlay: started {:?}, PID {}", target, child.id()));
+            log(&format!(
+                "overlay: started {:?}, PID {}",
+                target,
+                child.id()
+            ));
             child.wait().ok().and_then(|s| s.code()).unwrap_or(0)
         }
         Err(e) => {
@@ -43,15 +49,27 @@ pub fn run_launcher(game_id: u32, target: &Path, args: &[String]) -> i32 {
 
 fn load_overlay() -> Result<String, String> {
     use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::System::LibraryLoader::{LoadLibraryExW, LOAD_WITH_ALTERED_SEARCH_PATH};
+    use windows_sys::Win32::System::LibraryLoader::{
+        LOAD_WITH_ALTERED_SEARCH_PATH, LoadLibraryExW,
+    };
 
     let steam = crate::steam::SteamInstallation::detect().map_err(|e| e.to_string())?;
     let dll = steam.steam_path.join("GameOverlayRenderer64.dll");
     if !dll.exists() {
         return Err(format!("missing {}", dll.display()));
     }
-    let wide: Vec<u16> = dll.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
-    let module = unsafe { LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), LOAD_WITH_ALTERED_SEARCH_PATH) };
+    let wide: Vec<u16> = dll
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let module = unsafe {
+        LoadLibraryExW(
+            wide.as_ptr(),
+            std::ptr::null_mut(),
+            LOAD_WITH_ALTERED_SEARCH_PATH,
+        )
+    };
     if module.is_null() {
         return Err(format!("LoadLibrary failed for {}", dll.display()));
     }

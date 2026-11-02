@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use winreg::enums::*;
 use winreg::RegKey;
+use winreg::enums::*;
 
 use crate::i18n::tr;
 
@@ -32,22 +32,23 @@ impl SteamInstallation {
 
     fn find_steam_path() -> Result<PathBuf> {
         // Try reading HKCU\Software\Valve\Steam\SteamPath
-        if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Software\\Valve\\Steam") {
-            if let Ok(path_str) = hkcu.get_value::<String, _>("SteamPath") {
-                let path = PathBuf::from(path_str.replace('/', "\\"));
-                if path.exists() {
-                    return Ok(path);
-                }
+        if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey("Software\\Valve\\Steam")
+            && let Ok(path_str) = hkcu.get_value::<String, _>("SteamPath")
+        {
+            let path = PathBuf::from(path_str.replace('/', "\\"));
+            if path.exists() {
+                return Ok(path);
             }
         }
 
         // Try reading HKLM\SOFTWARE\WOW6432Node\Valve\Steam\InstallPath
-        if let Ok(hklm) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam") {
-            if let Ok(path_str) = hklm.get_value::<String, _>("InstallPath") {
-                let path = PathBuf::from(path_str);
-                if path.exists() {
-                    return Ok(path);
-                }
+        if let Ok(hklm) =
+            RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
+            && let Ok(path_str) = hklm.get_value::<String, _>("InstallPath")
+        {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                return Ok(path);
             }
         }
 
@@ -63,7 +64,13 @@ impl SteamInstallation {
             }
         }
 
-        anyhow::bail!("{}", tr("Steam installation not found in the registry or the standard folders.", "Nie znaleziono instalacji Steam w rejestrze ani standardowych folderach."))
+        anyhow::bail!(
+            "{}",
+            tr(
+                "Steam installation not found in the registry or the standard folders.",
+                "Nie znaleziono instalacji Steam w rejestrze ani standardowych folderach."
+            )
+        )
     }
 
     fn find_libraries(steam_path: &Path) -> Vec<PathBuf> {
@@ -80,7 +87,11 @@ impl SteamInstallation {
                     if parts.len() >= 4 {
                         let norm = PathBuf::from(parts[3].replace(r"\\", r"\").replace('/', "\\"));
                         let norm_lower = norm.to_string_lossy().to_lowercase();
-                        if norm.exists() && !libs.iter().any(|p| p.to_string_lossy().to_lowercase() == norm_lower) {
+                        if norm.exists()
+                            && !libs
+                                .iter()
+                                .any(|p| p.to_string_lossy().to_lowercase() == norm_lower)
+                        {
                             libs.push(norm);
                         }
                     }
@@ -104,20 +115,19 @@ impl SteamInstallation {
             if let Ok(entries) = std::fs::read_dir(&steamapps_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
-                        if file_name.starts_with("appmanifest_") && file_name.ends_with(".acf") {
-                            if let Some(app) = parse_appmanifest(&path, lib) {
-                                if !apps.iter().any(|a: &SteamApp| a.appid == app.appid) {
-                                    apps.push(app);
-                                }
-                            }
-                        }
+                    if let Some(file_name) = path.file_name().and_then(|f| f.to_str())
+                        && file_name.starts_with("appmanifest_")
+                        && file_name.ends_with(".acf")
+                        && let Some(app) = parse_appmanifest(&path, lib)
+                        && !apps.iter().any(|a: &SteamApp| a.appid == app.appid)
+                    {
+                        apps.push(app);
                     }
                 }
             }
         }
 
-        apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        apps.sort_by_key(|a| a.name.to_lowercase());
         apps
     }
 }
@@ -155,7 +165,10 @@ fn parse_appmanifest(manifest_path: &Path, library_root: &Path) -> Option<SteamA
     let name = name.unwrap_or_else(|| format!("App {appid}"));
     let installdir = installdir.unwrap_or_default();
 
-    let full_install_dir = library_root.join("steamapps").join("common").join(&installdir);
+    let full_install_dir = library_root
+        .join("steamapps")
+        .join("common")
+        .join(&installdir);
     let executable = find_game_executable(&full_install_dir, &installdir);
 
     Some(SteamApp {
@@ -217,13 +230,13 @@ pub fn find_game_executable(install_dir: &Path, folder_name: &str) -> Option<Pat
     let subdirs = ["bin", "bin/x64", "bin/win64", "x64", "Win64", "build"];
     for sub in &subdirs {
         let sub_path = install_dir.join(sub);
-        if sub_path.exists() {
-            if let Ok(entries) = std::fs::read_dir(&sub_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if is_potential_game_exe(&path) {
-                        candidate_exes.push(path);
-                    }
+        if sub_path.exists()
+            && let Ok(entries) = std::fs::read_dir(&sub_path)
+        {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if is_potential_game_exe(&path) {
+                    candidate_exes.push(path);
                 }
             }
         }
@@ -238,7 +251,10 @@ pub fn find_game_executable(install_dir: &Path, folder_name: &str) -> Option<Pat
     for exe in &candidate_exes {
         if let Some(stem) = exe.file_stem().and_then(|s| s.to_str()) {
             let lower_stem = stem.to_lowercase().replace(' ', "");
-            if lower_stem == lower_folder || lower_stem.contains(&lower_folder) || lower_folder.contains(&lower_stem) {
+            if lower_stem == lower_folder
+                || lower_stem.contains(&lower_folder)
+                || lower_folder.contains(&lower_stem)
+            {
                 return Some(exe.clone());
             }
         }
@@ -263,13 +279,32 @@ fn is_potential_game_exe(path: &Path) -> bool {
         return false;
     }
 
-    let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
     // Ignore helper / updater / crash tools
     let ignored = [
-        "crash", "report", "unins", "setup", "helper", "update", "redist", "vcredist",
-        "dxsetup", "dotnet", "eac", "anticheat", "launcher_prereq", "install", "cleanup",
-        "cef", "crashpad", "unitycrashhandler",
+        "crash",
+        "report",
+        "unins",
+        "setup",
+        "helper",
+        "update",
+        "redist",
+        "vcredist",
+        "dxsetup",
+        "dotnet",
+        "eac",
+        "anticheat",
+        "launcher_prereq",
+        "install",
+        "cleanup",
+        "cef",
+        "crashpad",
+        "unitycrashhandler",
     ];
 
     for ign in &ignored {
@@ -310,15 +345,14 @@ pub fn launch_steam_app(appid: u32, args: &[String]) -> Result<()> {
         // 1. Try invoking steam.exe -applaunch directly if steam path is known
         if let Ok(steam) = SteamInstallation::detect() {
             let steam_exe = steam.steam_path.join("steam.exe");
-            if steam_exe.exists() {
-                if let Ok(_) = std::process::Command::new(&steam_exe)
+            if steam_exe.exists()
+                && let Ok(_) = std::process::Command::new(&steam_exe)
                     .args(["-applaunch", &appid.to_string()])
                     .args(args)
                     .creation_flags(CREATE_NO_WINDOW)
                     .spawn()
-                {
-                    return Ok(());
-                }
+            {
+                return Ok(());
             }
         }
 
@@ -327,7 +361,15 @@ pub fn launch_steam_app(appid: u32, args: &[String]) -> Result<()> {
             .args(["url.dll,FileProtocolHandler", &url])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
-            .with_context(|| format!("{} {appid}", tr("Could not open the Steam URL for AppID", "Nie udało się uruchomić protokołu Steam dla AppID")))?;
+            .with_context(|| {
+                format!(
+                    "{} {appid}",
+                    tr(
+                        "Could not open the Steam URL for AppID",
+                        "Nie udało się uruchomić protokołu Steam dla AppID"
+                    )
+                )
+            })?;
     }
 
     #[cfg(not(windows))]
@@ -336,7 +378,15 @@ pub fn launch_steam_app(appid: u32, args: &[String]) -> Result<()> {
         std::process::Command::new("xdg-open")
             .arg(&url)
             .spawn()
-            .with_context(|| format!("{} {appid}", tr("Could not open the Steam URL for AppID", "Nie udało się uruchomić protokołu Steam dla AppID")))?;
+            .with_context(|| {
+                format!(
+                    "{} {appid}",
+                    tr(
+                        "Could not open the Steam URL for AppID",
+                        "Nie udało się uruchomić protokołu Steam dla AppID"
+                    )
+                )
+            })?;
     }
 
     Ok(())
@@ -349,32 +399,30 @@ pub fn detect_target_steam_appid(target_path: &Path) -> Option<u32> {
     // 1. Walk up directory tree to find steamapps/appmanifest_*.acf
     let mut current = target_dir;
     while let Some(parent) = current.parent() {
-        if let Some(name) = parent.file_name().and_then(|s| s.to_str()) {
-            if name.eq_ignore_ascii_case("common") {
-                if let Some(steamapps) = parent.parent() {
-                    if let Some(sa_name) = steamapps.file_name().and_then(|s| s.to_str()) {
-                        if sa_name.eq_ignore_ascii_case("steamapps") {
-                            let folder_name = current.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                            if let Ok(entries) = std::fs::read_dir(steamapps) {
-                                for entry in entries.flatten() {
-                                    let path = entry.path();
-                                    if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
-                                        if fname.starts_with("appmanifest_") && fname.ends_with(".acf") {
-                                            if let Ok(content) = std::fs::read_to_string(&path) {
-                                                let low_content = content.to_lowercase();
-                                                let target_needle = format!("\"{}\"", folder_name.to_lowercase());
-                                                if low_content.contains(&target_needle) {
-                                                    if let Some(id_str) = fname.strip_prefix("appmanifest_").and_then(|s| s.strip_suffix(".acf")) {
-                                                        if let Ok(id) = id_str.parse::<u32>() {
-                                                            return Some(id);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+        if let Some(name) = parent.file_name().and_then(|s| s.to_str())
+            && name.eq_ignore_ascii_case("common")
+            && let Some(steamapps) = parent.parent()
+            && let Some(sa_name) = steamapps.file_name().and_then(|s| s.to_str())
+            && sa_name.eq_ignore_ascii_case("steamapps")
+        {
+            let folder_name = current.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if let Ok(entries) = std::fs::read_dir(steamapps) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(fname) = path.file_name().and_then(|s| s.to_str())
+                        && fname.starts_with("appmanifest_")
+                        && fname.ends_with(".acf")
+                        && let Ok(content) = std::fs::read_to_string(&path)
+                    {
+                        let low_content = content.to_lowercase();
+                        let target_needle = format!("\"{}\"", folder_name.to_lowercase());
+                        if low_content.contains(&target_needle)
+                            && let Some(id_str) = fname
+                                .strip_prefix("appmanifest_")
+                                .and_then(|s| s.strip_suffix(".acf"))
+                            && let Ok(id) = id_str.parse::<u32>()
+                        {
+                            return Some(id);
                         }
                     }
                 }
@@ -386,9 +434,16 @@ pub fn detect_target_steam_appid(target_path: &Path) -> Option<u32> {
     // 2. Fallback: match against all detected Steam libraries
     if let Ok(steam_inst) = SteamInstallation::detect() {
         let apps = steam_inst.get_installed_apps();
-        let target_norm = target_path.to_string_lossy().to_lowercase().replace('/', "\\");
+        let target_norm = target_path
+            .to_string_lossy()
+            .to_lowercase()
+            .replace('/', "\\");
         for app in apps {
-            let install_norm = app.install_dir.to_string_lossy().to_lowercase().replace('/', "\\");
+            let install_norm = app
+                .install_dir
+                .to_string_lossy()
+                .to_lowercase()
+                .replace('/', "\\");
             if target_norm.starts_with(&install_norm) {
                 return Some(app.appid);
             }
@@ -410,7 +465,10 @@ mod tests {
 
         let line_escaped = r#"    "path"    "C:\\Program Files (x86)\\Steam"    "#;
         let tokens_escaped = extract_quoted_tokens(line_escaped);
-        assert_eq!(tokens_escaped, vec!["path", "C:\\Program Files (x86)\\Steam"]);
+        assert_eq!(
+            tokens_escaped,
+            vec!["path", "C:\\Program Files (x86)\\Steam"]
+        );
     }
 
     #[test]

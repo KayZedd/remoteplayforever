@@ -1,0 +1,68 @@
+name: Game compatibility report
+description: Tell others whether a game or emulator works with RemotePlayForever
+title: "[Game] "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Reports end up in [docs/COMPATIBILITY.md](https://github.com/KayZedd/remoteplayforever/blob/master/docs/COMPATIBILITY.md). Works and doesn't-work reports are equally useful.
+  - type: input
+    id: game
+    attributes:
+      label: Game or emulator
+      description: Name, and for an emulator the emulated game too.
+      placeholder: "Ryujinx 1.2.x - Mario Kart 8 Deluxe"
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where is it from?
+      options:
+        - Steam (installed Steam game)
+        - Emulator
+        - GOG
+        - Epic Games Store
+        - itch.io / other store
+        - Standalone .exe
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: Result
+      options:
+        - "✅ Works out of the box"
+        - "🎮 Works after the controller layout fix (Shift+Tab -> Gamepad template)"
+        - "⚠️ Works with caveats (describe below)"
+        - "❌ Does not work"
+    validations:
+      required: true
+  - type: checkboxes
+    id: input
+    attributes:
+      label: What worked for the guest?
+      options:
+        - label: Seeing the stream
+        - label: Keyboard
+        - label: Mouse
+        - label: Controller
+  - type: input
+    id: version
+    attributes:
+      label: RemotePlayForever version
+      description: Shown next to the title in the window.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: guest
+    attributes:
+      label: Guest device
+      placeholder: "Steam on Windows / Steam Link on Android TV / ..."
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Launch arguments, settings you changed, anything that went wrong.

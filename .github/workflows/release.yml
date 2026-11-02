@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build installer and publish release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check tag matches Cargo.toml and installer.iss
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $cargo = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $iss = (Select-String -Path installer\installer.iss -Pattern '#define MyAppVersion "([^"]+)"').Matches[0].Groups[1].Value
+          Write-Host "tag=$tag Cargo.toml=$cargo installer.iss=$iss"
+          if ($tag -ne $cargo -or $tag -ne $iss) {
+            Write-Error "Version mismatch: bump Cargo.toml and installer/installer.iss to $tag"
+          }
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Install Inno Setup if missing
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ }
+          if (-not $iscc -and -not (Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build binary and installer
+        shell: pwsh
+        run: ./build_installer.ps1
+
+      - name: Collect assets and checksums
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item "dist\RemotePlayForever-Setup-$version.exe" release\
+          Copy-Item target\release\remoteplayforever.exe "release\remoteplayforever-$version-x64.exe"
+          Get-ChildItem release\*.exe | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content -Encoding ascii release\SHA256SUMS.txt
+          Get-Content release\SHA256SUMS.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*.exe
+
+      - name: Write release notes header
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          version=${TAG#v}
+          cat > release-notes.md <<EOF
+          **[Download RemotePlayForever-Setup-$version.exe](https://github.com/$REPO/releases/download/$TAG/RemotePlayForever-Setup-$version.exe)** (Windows x64). Changes: [CHANGELOG.md](https://github.com/$REPO/blob/$TAG/CHANGELOG.md).
+
+          Built by GitHub Actions from this tag. Verify the download:
+          \`\`\`
+          gh attestation verify RemotePlayForever-Setup-$version.exe --repo $REPO
+          \`\`\`
+          or compare \`Get-FileHash\` with \`SHA256SUMS.txt\`.
+          EOF
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: release/*
+          body_path: release-notes.md
+          generate_release_notes: true
+          fail_on_unmatched_files: true

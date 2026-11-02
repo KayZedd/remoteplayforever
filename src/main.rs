@@ -85,7 +85,12 @@ fn main() -> Result<()> {
 
     let mut cli = match Cli::try_parse() {
         Ok(c) => c,
-        Err(e) if matches!(e.kind(), clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion) => {
+        Err(e)
+            if matches!(
+                e.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ) =>
+        {
             let _ = e.print();
             return Ok(());
         }
@@ -100,8 +105,14 @@ fn main() -> Result<()> {
 
     // Helper processes are children of this same executable; they must not run the app startup below.
     if let Some(game_id) = cli.overlay_launch {
-        let Some((target, args)) = cli.extra_args.split_first() else { std::process::exit(2) };
-        std::process::exit(overlay::run_launcher(game_id, std::path::Path::new(target), args));
+        let Some((target, args)) = cli.extra_args.split_first() else {
+            std::process::exit(2)
+        };
+        std::process::exit(overlay::run_launcher(
+            game_id,
+            std::path::Path::new(target),
+            args,
+        ));
     }
     if let Some(appid) = cli.host_session {
         let inputs = session::GuestInputs {
@@ -116,44 +127,60 @@ fn main() -> Result<()> {
     runner::log(&format!("Args: {:?}", std::env::args().collect::<Vec<_>>()));
 
     // If cli.run is a partial path because of unquoted spaces in CLI arguments:
-    if let Some(ref r) = cli.run {
-        if !r.exists() && !cli.extra_args.is_empty() {
-            let mut combined = r.to_string_lossy().to_string();
-            let mut matched_index = None;
-            for (idx, arg) in cli.extra_args.iter().enumerate() {
-                combined.push(' ');
-                combined.push_str(arg);
-                let test_p = PathBuf::from(&combined);
-                if test_p.exists() {
-                    cli.run = Some(test_p);
-                    matched_index = Some(idx);
-                    break;
-                }
+    if let Some(ref r) = cli.run
+        && !r.exists()
+        && !cli.extra_args.is_empty()
+    {
+        let mut combined = r.to_string_lossy().to_string();
+        let mut matched_index = None;
+        for (idx, arg) in cli.extra_args.iter().enumerate() {
+            combined.push(' ');
+            combined.push_str(arg);
+            let test_p = PathBuf::from(&combined);
+            if test_p.exists() {
+                cli.run = Some(test_p);
+                matched_index = Some(idx);
+                break;
             }
-            if let Some(idx) = matched_index {
-                cli.extra_args.drain(0..=idx);
-            }
+        }
+        if let Some(idx) = matched_index {
+            cli.extra_args.drain(0..=idx);
         }
     }
 
     // Support drag & drop or a direct executable argument:
-    if cli.run.is_none() {
-        if let Some(first) = cli.extra_args.first().cloned() {
-            let path = PathBuf::from(&first);
-            if path.exists() && (first.to_lowercase().ends_with(".exe") || first.to_lowercase().ends_with(".bat") || first.to_lowercase().ends_with(".cmd")) {
-                cli.run = Some(path);
-                cli.extra_args.remove(0);
-                if cli.args.is_empty() {
-                    cli.args = cli.extra_args.clone();
-                }
+    if cli.run.is_none()
+        && let Some(first) = cli.extra_args.first().cloned()
+    {
+        let path = PathBuf::from(&first);
+        if path.exists()
+            && (first.to_lowercase().ends_with(".exe")
+                || first.to_lowercase().ends_with(".bat")
+                || first.to_lowercase().ends_with(".cmd"))
+        {
+            cli.run = Some(path);
+            cli.extra_args.remove(0);
+            if cli.args.is_empty() {
+                cli.args = cli.extra_args.clone();
             }
         }
     }
 
     if let Err(e) = run_app(cli, &mut config) {
         runner::log(&format!("FATAL ERROR in run_app: {:?}", e));
-        eprintln!("\n{}: {:?}", i18n::tr("RemotePlayForever failed", "Wystąpił błąd w RemotePlayForever"), e);
-        eprintln!("{}: {}", i18n::tr("Log", "Log"), runner::get_log_path().display());
+        eprintln!(
+            "\n{}: {:?}",
+            i18n::tr(
+                "RemotePlayForever failed",
+                "Wystąpił błąd w RemotePlayForever"
+            ),
+            e
+        );
+        eprintln!(
+            "{}: {}",
+            i18n::tr("Log", "Log"),
+            runner::get_log_path().display()
+        );
         return Err(e);
     }
     runner::log("run_app finished cleanly");
@@ -167,12 +194,27 @@ fn run_app(cli: Cli, config: &mut config::Config) -> Result<()> {
     if cli.list_games {
         if let Some(ref steam) = steam_inst {
             let apps = steam.get_installed_apps();
-            println!("{} ({}):", i18n::tr("Installed Steam games", "Zainstalowane gry Steam"), apps.len());
+            println!(
+                "{} ({}):",
+                i18n::tr("Installed Steam games", "Zainstalowane gry Steam"),
+                apps.len()
+            );
             for app in apps {
-                println!("- {} (AppID: {}) [{}]", app.name, app.appid, app.install_dir.display());
+                println!(
+                    "- {} (AppID: {}) [{}]",
+                    app.name,
+                    app.appid,
+                    app.install_dir.display()
+                );
             }
         } else {
-            eprintln!("{}", i18n::tr("Steam installation not found.", "Nie wykryto instalacji Steam."));
+            eprintln!(
+                "{}",
+                i18n::tr(
+                    "Steam installation not found.",
+                    "Nie wykryto instalacji Steam."
+                )
+            );
         }
         return Ok(());
     }

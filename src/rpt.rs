@@ -14,8 +14,8 @@
 //! calling thread is not an STA (the GUI thread is), and so that a bad call into Steam's
 //! internals can only take down this helper, never the GUI.
 
-use crate::runner::log;
 use crate::i18n::tr;
+use crate::runner::log;
 use crate::session::{GuestInputs, HostCommand, HostEvent, InputKind};
 use std::collections::HashMap;
 use std::ffi::{c_char, c_void};
@@ -76,11 +76,15 @@ pub struct Guest {
 // ---------------------------------------------------------------------------------------------
 
 fn read_u32(bytes: &[u8], off: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(bytes.get(off..off.checked_add(4)?)?.try_into().ok()?))
+    Some(u32::from_le_bytes(
+        bytes.get(off..off.checked_add(4)?)?.try_into().ok()?,
+    ))
 }
 
 fn read_u64(bytes: &[u8], off: usize) -> Option<u64> {
-    Some(u64::from_le_bytes(bytes.get(off..off.checked_add(8)?)?.try_into().ok()?))
+    Some(u64::from_le_bytes(
+        bytes.get(off..off.checked_add(8)?)?.try_into().ok()?,
+    ))
 }
 
 /// Name of the client stub starting at `fn_off` inside a loaded module image: the first
@@ -88,7 +92,9 @@ fn read_u64(bytes: &[u8], off: usize) -> Option<u64> {
 pub fn stub_name(image: &[u8], fn_off: usize) -> Option<String> {
     for k in 0..260 {
         let at = fn_off + k;
-        let Some(ins) = image.get(at..at + 7) else { break };
+        let Some(ins) = image.get(at..at + 7) else {
+            break;
+        };
         if !matches!(ins[0], 0x48 | 0x4C | 0x49 | 0x4D) || ins[1] != 0x8D || ins[2] & 0xC7 != 0x05 {
             continue;
         }
@@ -115,7 +121,9 @@ pub fn stub_name(image: &[u8], fn_off: usize) -> Option<String> {
 pub fn scan_vtable_names(image: &[u8], base: usize, vtable_off: usize) -> HashMap<String, usize> {
     let mut map = HashMap::new();
     for i in 0..400 {
-        let Some(func) = read_u64(image, vtable_off + i * 8) else { break };
+        let Some(func) = read_u64(image, vtable_off + i * 8) else {
+            break;
+        };
         let func = func as usize;
         if func < base || func >= base + image.len() {
             break;
@@ -157,7 +165,10 @@ pub fn extract_url(payload: &[u8]) -> Option<String> {
 pub fn normalize_url(url: &str) -> String {
     let u = url.trim();
     let lower = u.to_ascii_lowercase();
-    if lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("steam://") {
+    if lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || lower.starts_with("steam://")
+    {
         u.to_string()
     } else if let Some(rest) = u.strip_prefix("//") {
         format!("https://{rest}")
@@ -201,7 +212,9 @@ pub fn input_targets(max_invited_guest: u32, guests: &[Guest]) -> Vec<(u64, u32)
     let unclaimed = (1..=max_invited_guest)
         .filter(|id| !guests.iter().any(|g| g.guest_id == *id))
         .map(|id| (0, id));
-    unclaimed.chain(guests.iter().map(|g| (g.steam, g.guest_id))).collect()
+    unclaimed
+        .chain(guests.iter().map(|g| (g.steam, g.guest_id)))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -234,7 +247,13 @@ struct Host {
 
 /// Error for a Steam client build whose internals no longer match what this host expects.
 fn unsupported(what: &str) -> String {
-    format!("{} ({what})", tr("Unsupported Steam client version", "Nieobsługiwana wersja klienta Steam"))
+    format!(
+        "{} ({what})",
+        tr(
+            "Unsupported Steam client version",
+            "Nieobsługiwana wersja klienta Steam"
+        )
+    )
 }
 
 fn emit(ev: HostEvent) {
@@ -252,44 +271,86 @@ fn status(msg: impl Into<String>) {
 impl Host {
     fn attach(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> Result<Self, String> {
         use std::os::windows::ffi::OsStrExt;
-        use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExW, LOAD_WITH_ALTERED_SEARCH_PATH};
+        use windows_sys::Win32::System::LibraryLoader::{
+            GetProcAddress, LOAD_WITH_ALTERED_SEARCH_PATH, LoadLibraryExW,
+        };
 
         let steam = crate::steam::SteamInstallation::detect().map_err(|e| e.to_string())?;
         let dll = steam.steam_path.join("steamclient64.dll");
         if !dll.exists() {
-            return Err(format!("{} {}", tr("Not found:", "Nie znaleziono"), dll.display()));
+            return Err(format!(
+                "{} {}",
+                tr("Not found:", "Nie znaleziono"),
+                dll.display()
+            ));
         }
         // steamclient64.dll resolves its own dependencies (tier0_s64.dll, ...) relative to the Steam dir.
         let _ = std::env::set_current_dir(&steam.steam_path);
-        let wide: Vec<u16> = dll.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+        let wide: Vec<u16> = dll
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
 
         unsafe {
-            let module = LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), LOAD_WITH_ALTERED_SEARCH_PATH);
+            let module = LoadLibraryExW(
+                wide.as_ptr(),
+                std::ptr::null_mut(),
+                LOAD_WITH_ALTERED_SEARCH_PATH,
+            );
             if module.is_null() {
-                return Err(tr("Could not load steamclient64.dll", "Nie udało się załadować steamclient64.dll").into());
+                return Err(tr(
+                    "Could not load steamclient64.dll",
+                    "Nie udało się załadować steamclient64.dll",
+                )
+                .into());
             }
-            let export = |name: &[u8]| GetProcAddress(module, name.as_ptr()).ok_or_else(|| {
-                format!("{} {}", tr("steamclient64.dll does not export", "steamclient64.dll nie eksportuje"), String::from_utf8_lossy(&name[..name.len() - 1]))
-            });
-            let create_interface: CreateInterfaceFn = std::mem::transmute(export(b"CreateInterface\0")?);
+            let export = |name: &[u8]| {
+                GetProcAddress(module, name.as_ptr()).ok_or_else(|| {
+                    format!(
+                        "{} {}",
+                        tr(
+                            "steamclient64.dll does not export",
+                            "steamclient64.dll nie eksportuje"
+                        ),
+                        String::from_utf8_lossy(&name[..name.len() - 1])
+                    )
+                })
+            };
+            let create_interface: CreateInterfaceFn =
+                std::mem::transmute(export(b"CreateInterface\0")?);
             let bget: BGetCallbackFn = std::mem::transmute(export(b"Steam_BGetCallback\0")?);
-            let bfree: FreeLastCallbackFn = std::mem::transmute(export(b"Steam_FreeLastCallback\0")?);
+            let bfree: FreeLastCallbackFn =
+                std::mem::transmute(export(b"Steam_FreeLastCallback\0")?);
 
             let client = create_interface(c"SteamClient019".as_ptr(), std::ptr::null_mut());
             if client.is_null() {
                 return Err(unsupported("SteamClient019"));
             }
-            let create_pipe: unsafe extern "C" fn(*mut c_void) -> i32 = std::mem::transmute(vfn(client, 0));
-            let connect_user: unsafe extern "C" fn(*mut c_void, i32) -> i32 = std::mem::transmute(vfn(client, 2));
+            let create_pipe: unsafe extern "C" fn(*mut c_void) -> i32 =
+                std::mem::transmute(vfn(client, 0));
+            let connect_user: unsafe extern "C" fn(*mut c_void, i32) -> i32 =
+                std::mem::transmute(vfn(client, 2));
             let pipe = create_pipe(client);
             if pipe == 0 {
-                return Err(tr("Steam is not running. Start Steam and sign in.", "Steam nie jest uruchomiony. Uruchom Steam i zaloguj się.").into());
+                return Err(tr(
+                    "Steam is not running. Start Steam and sign in.",
+                    "Steam nie jest uruchomiony. Uruchom Steam i zaloguj się.",
+                )
+                .into());
             }
             if connect_user(client, pipe) == 0 {
-                return Err(tr("Nobody is signed in to Steam. Sign in and try again.", "Brak zalogowanego użytkownika Steam. Zaloguj się w Steam.").into());
+                return Err(tr(
+                    "Nobody is signed in to Steam. Sign in and try again.",
+                    "Brak zalogowanego użytkownika Steam. Zaloguj się w Steam.",
+                )
+                .into());
             }
 
-            let engine = create_interface(c"CLIENTENGINE_INTERFACE_VERSION005".as_ptr(), std::ptr::null_mut());
+            let engine = create_interface(
+                c"CLIENTENGINE_INTERFACE_VERSION005".as_ptr(),
+                std::ptr::null_mut(),
+            );
             if engine.is_null() {
                 return Err(unsupported("CLIENTENGINE_INTERFACE_VERSION005"));
             }
@@ -297,7 +358,11 @@ impl Host {
                 std::mem::transmute(vfn(engine, ENGINE_GET_REMOTE_CLIENT_MANAGER));
             let rcm = get_rcm(engine, pipe);
             if rcm.is_null() {
-                return Err(tr("Steam did not provide its Remote Play manager (are you signed in?)", "Steam nie udostępnił menedżera Remote Play (czy jesteś zalogowany?)").into());
+                return Err(tr(
+                    "Steam did not provide its Remote Play manager (are you signed in?)",
+                    "Steam nie udostępnił menedżera Remote Play (czy jesteś zalogowany?)",
+                )
+                .into());
             }
 
             let base = module as usize;
@@ -307,10 +372,20 @@ impl Host {
                 return Err(unsupported("IClientEngine layout"));
             }
             let names = scan_vtable_names(image, base, vtable - base);
-            log(&format!("rpt: resolved {} IClientRemoteClientManager methods by name", names.len()));
-            let mut remote_play: Vec<_> = names.iter().filter(|(n, _)| n.contains("RemotePlay")).map(|(n, i)| format!("{i}:{n}")).collect();
+            log(&format!(
+                "rpt: resolved {} IClientRemoteClientManager methods by name",
+                names.len()
+            ));
+            let mut remote_play: Vec<_> = names
+                .iter()
+                .filter(|(n, _)| n.contains("RemotePlay"))
+                .map(|(n, i)| format!("{i}:{n}"))
+                .collect();
             remote_play.sort();
-            log(&format!("rpt: Remote Play methods in this Steam build: {}", remote_play.join(" ")));
+            log(&format!(
+                "rpt: Remote Play methods in this Steam build: {}",
+                remote_play.join(" ")
+            ));
             if let Some(missing) = REQUIRED_METHODS.iter().find(|m| !names.contains_key(**m)) {
                 return Err(unsupported(missing));
             }
@@ -372,7 +447,8 @@ impl Host {
 
     fn call_u32_u32(&self, name: &str, arg: u32) -> u32 {
         self.method(name).map_or(0, |f| {
-            let f: unsafe extern "C" fn(*mut c_void, u32) -> u32 = unsafe { std::mem::transmute(f) };
+            let f: unsafe extern "C" fn(*mut c_void, u32) -> u32 =
+                unsafe { std::mem::transmute(f) };
             unsafe { f(self.rcm, arg) }
         })
     }
@@ -390,7 +466,12 @@ impl Host {
     /// Drain the callback pipe, copying each payload out before Steam frees it.
     fn poll(&mut self) -> Vec<(i32, Vec<u8>)> {
         let mut out = Vec::new();
-        let mut msg = CallbackMsg { user: 0, id: 0, param: std::ptr::null(), size: 0 };
+        let mut msg = CallbackMsg {
+            user: 0,
+            id: 0,
+            param: std::ptr::null(),
+            size: 0,
+        };
         unsafe {
             while (self.bget)(self.pipe, &mut msg) != 0 {
                 let len = (msg.size.max(0) as usize).min(MAX_CALLBACK_PAYLOAD);
@@ -424,8 +505,15 @@ impl Host {
             return;
         }
         if !CB_GROUP_REFRESH.contains(&id) {
-            let hex: String = payload.iter().take(64).map(|b| format!("{b:02x}")).collect();
-            log(&format!("rpt: callback {id} ({} bytes): {hex}", payload.len()));
+            let hex: String = payload
+                .iter()
+                .take(64)
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            log(&format!(
+                "rpt: callback {id} ({} bytes): {hex}",
+                payload.len()
+            ));
         }
         if id == CB_STREAM_ACTIVE && !self.guest_connected {
             self.guest_connected = true;
@@ -449,7 +537,11 @@ impl Host {
                 Some(_) => {}
                 None => {
                     let slot = self.guests.len() as u32 + 1;
-                    emit(HostEvent::Player { slot, steam: found.steam, name: format!("{} {slot}", tr("Player", "Gracz")) });
+                    emit(HostEvent::Player {
+                        slot,
+                        steam: found.steam,
+                        name: format!("{} {slot}", tr("Player", "Gracz")),
+                    });
                     self.guests.push(found);
                     changed = true;
                 }
@@ -474,14 +566,20 @@ impl Host {
     }
 
     fn set_inputs_for(&self, steam: u64, guest_id: u32, group: u32) {
-        let player = RemotePlayPlayer { steam_id: steam, guest_id, group_id: group, ..Default::default() };
+        let player = RemotePlayPlayer {
+            steam_id: steam,
+            guest_id,
+            group_id: group,
+            ..Default::default()
+        };
         for (name, on) in [
             ("SetPerUserKeyboardInputEnabled", self.want.keyboard),
             ("SetPerUserMouseInputEnabled", self.want.mouse),
             ("SetPerUserControllerInputEnabled", self.want.controller),
         ] {
             if let Some(f) = self.method(name) {
-                let f: unsafe extern "C" fn(*mut c_void, *const RemotePlayPlayer, u8) = unsafe { std::mem::transmute(f) };
+                let f: unsafe extern "C" fn(*mut c_void, *const RemotePlayPlayer, u8) =
+                    unsafe { std::mem::transmute(f) };
                 unsafe { f(self.rcm, &player, u8::from(on)) }
             }
         }
@@ -505,7 +603,10 @@ impl Host {
             return Ok(existing);
         }
         let accepted = self.call_u32_u32("BCreateRemotePlayGroup", self.appid) & 0xff != 0;
-        log(&format!("rpt: BCreateRemotePlayGroup({}) = {accepted}", self.appid));
+        log(&format!(
+            "rpt: BCreateRemotePlayGroup({}) = {accepted}",
+            self.appid
+        ));
         // The id is allocated asynchronously
         let deadline = Instant::now() + Duration::from_secs(6);
         while Instant::now() < deadline {
@@ -515,25 +616,48 @@ impl Host {
                 return Ok(group);
             }
         }
-        Err(tr("Steam did not create a Remote Play Together group", "Steam nie utworzył grupy Remote Play Together").into())
+        Err(tr(
+            "Steam did not create a Remote Play Together group",
+            "Steam nie utworzył grupy Remote Play Together",
+        )
+        .into())
     }
 
     /// Create one guest slot in the live group and wait for its join link.
     fn add_guest_link(&mut self) -> Option<String> {
         let group = self.group();
         if group == 0 {
-            emit(HostEvent::Error(tr("There is no active Remote Play Together group", "Brak aktywnej grupy Remote Play Together").into()));
+            emit(HostEvent::Error(
+                tr(
+                    "There is no active Remote Play Together group",
+                    "Brak aktywnej grupy Remote Play Together",
+                )
+                .into(),
+            ));
             return None;
         }
-        let guest_id = self.call_u32("GetAvailableRemotePlayTogetherGuestID").max(1);
+        let guest_id = self
+            .call_u32("GetAvailableRemotePlayTogetherGuestID")
+            .max(1);
         self.max_invited_guest = self.max_invited_guest.max(guest_id);
 
-        let player = RemotePlayPlayer { steam_id: 0, guest_id, group_id: group, ..Default::default() };
-        let created = self.method("BCreateRemotePlayInviteAndSession").is_some_and(|f| {
-            let f: unsafe extern "C" fn(*mut c_void, *const RemotePlayPlayer, u32) -> u8 = unsafe { std::mem::transmute(f) };
-            unsafe { f(self.rcm, &player, self.appid) != 0 }
-        });
-        log(&format!("rpt: BCreateRemotePlayInviteAndSession={created} group={group} guest={guest_id} app={}", self.appid));
+        let player = RemotePlayPlayer {
+            steam_id: 0,
+            guest_id,
+            group_id: group,
+            ..Default::default()
+        };
+        let created = self
+            .method("BCreateRemotePlayInviteAndSession")
+            .is_some_and(|f| {
+                let f: unsafe extern "C" fn(*mut c_void, *const RemotePlayPlayer, u32) -> u8 =
+                    unsafe { std::mem::transmute(f) };
+                unsafe { f(self.rcm, &player, self.appid) != 0 }
+            });
+        log(&format!(
+            "rpt: BCreateRemotePlayInviteAndSession={created} group={group} guest={guest_id} app={}",
+            self.appid
+        ));
 
         let deadline = Instant::now() + Duration::from_secs(8);
         while Instant::now() < deadline {
@@ -555,21 +679,33 @@ impl Host {
                 return Some(url);
             }
         }
-        emit(HostEvent::Error(tr("Steam did not return an invite link", "Steam nie zwrócił linku zaproszenia").into()));
+        emit(HostEvent::Error(
+            tr(
+                "Steam did not return an invite link",
+                "Steam nie zwrócił linku zaproszenia",
+            )
+            .into(),
+        ));
         None
     }
 
     /// Disable guest input and disband the group so guests stop streaming. Exiting alone would
     /// leave Steam's stream alive.
     fn teardown(&mut self) {
-        self.want = GuestInputs { keyboard: false, mouse: false, controller: false };
+        self.want = GuestInputs {
+            keyboard: false,
+            mouse: false,
+            controller: false,
+        };
         self.apply_inputs();
         let group = self.group();
         if group != 0 {
             if self.names.contains_key("DisbandRemotePlayTogetherGroup") {
                 self.call_void_u32("DisbandRemotePlayTogetherGroup", group);
             } else {
-                log("rpt: DisbandRemotePlayTogetherGroup not found in this Steam build; group left to Steam");
+                log(
+                    "rpt: DisbandRemotePlayTogetherGroup not found in this Steam build; group left to Steam",
+                );
             }
         }
         if self.desktop_stream {
@@ -637,8 +773,13 @@ unsafe fn module_image(base: usize) -> Option<&'static [u8]> {
 
 /// Entry point of `--host-session`. Returns the process exit code.
 pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
-    log(&format!("rpt: host starting appid={appid} desktop_stream={desktop_stream} inputs={inputs:?}"));
-    status(tr("Connecting to the Steam client...", "Łączenie z klientem Steam..."));
+    log(&format!(
+        "rpt: host starting appid={appid} desktop_stream={desktop_stream} inputs={inputs:?}"
+    ));
+    status(tr(
+        "Connecting to the Steam client...",
+        "Łączenie z klientem Steam...",
+    ));
     let mut host = match Host::attach(appid, desktop_stream, inputs) {
         Ok(h) => h,
         Err(e) => {
@@ -652,10 +793,10 @@ pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines() {
             let Ok(line) = line else { break };
-            if let Some(cmd) = HostCommand::parse(&line) {
-                if tx.send(cmd).is_err() {
-                    return;
-                }
+            if let Some(cmd) = HostCommand::parse(&line)
+                && tx.send(cmd).is_err()
+            {
+                return;
             }
         }
         let _ = tx.send(HostCommand::Stop);
@@ -666,7 +807,10 @@ pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
         host.call_void_bool("SetStreamingDesktopToRemotePlayTogetherEnabled", true);
     }
 
-    status(tr("Creating the Remote Play Together group...", "Tworzenie grupy Remote Play Together..."));
+    status(tr(
+        "Creating the Remote Play Together group...",
+        "Tworzenie grupy Remote Play Together...",
+    ));
     let group = match host.create_group() {
         Ok(g) => g,
         Err(e) => {
@@ -677,7 +821,10 @@ pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
     };
     log(&format!("rpt: group {group} live"));
 
-    status(tr("Creating the invite link...", "Tworzenie linku zaproszenia..."));
+    status(tr(
+        "Creating the invite link...",
+        "Tworzenie linku zaproszenia...",
+    ));
     host.add_guest_link();
     host.show_overlay();
     emit(HostEvent::Ready);
@@ -729,8 +876,14 @@ mod tests {
     #[test]
     fn stub_name_follows_rip_relative_lea() {
         let image = fake_image();
-        assert_eq!(stub_name(&image, 0x200).as_deref(), Some("BCreateRemotePlayGroup"));
-        assert_eq!(stub_name(&image, 0x300).as_deref(), Some("GetLocalRemotePlayTogetherGroupID"));
+        assert_eq!(
+            stub_name(&image, 0x200).as_deref(),
+            Some("BCreateRemotePlayGroup")
+        );
+        assert_eq!(
+            stub_name(&image, 0x300).as_deref(),
+            Some("GetLocalRemotePlayTogetherGroupID")
+        );
     }
 
     #[test]
@@ -761,7 +914,10 @@ mod tests {
     fn url_at_known_offset() {
         let mut payload = vec![0u8; 200];
         put(&mut payload, 56, b"s.team/remoteplay/connect/1234\0");
-        assert_eq!(extract_url(&payload).as_deref(), Some("s.team/remoteplay/connect/1234"));
+        assert_eq!(
+            extract_url(&payload).as_deref(),
+            Some("s.team/remoteplay/connect/1234")
+        );
     }
 
     #[test]
@@ -769,7 +925,10 @@ mod tests {
         let mut payload = vec![0u8; 200];
         put(&mut payload, 56, &[1, 2, 3, 0]);
         put(&mut payload, 72, b"https://s.team/remoteplay/connect/9\0");
-        assert_eq!(extract_url(&payload).as_deref(), Some("https://s.team/remoteplay/connect/9"));
+        assert_eq!(
+            extract_url(&payload).as_deref(),
+            Some("https://s.team/remoteplay/connect/9")
+        );
         assert_eq!(extract_url(&[0u8; 200]), None);
         assert_eq!(extract_url(&[]), None);
     }
@@ -778,8 +937,14 @@ mod tests {
     fn url_normalization() {
         assert_eq!(normalize_url("s.team/p/abcd"), "https://s.team/p/abcd");
         assert_eq!(normalize_url("//s.team/p/abcd"), "https://s.team/p/abcd");
-        assert_eq!(normalize_url(" https://s.team/p/abcd "), "https://s.team/p/abcd");
-        assert_eq!(normalize_url("steam://remoteplay/connect/1"), "steam://remoteplay/connect/1");
+        assert_eq!(
+            normalize_url(" https://s.team/p/abcd "),
+            "https://s.team/p/abcd"
+        );
+        assert_eq!(
+            normalize_url("steam://remoteplay/connect/1"),
+            "steam://remoteplay/connect/1"
+        );
     }
 
     fn player(steam: u64, guest: u32, group: u32) -> Vec<u8> {
@@ -801,14 +966,23 @@ mod tests {
         payload.extend(player(0, 1, 7)); // unclaimed link slot
         payload.extend(player(friend, 2, 7)); // duplicate
 
-        assert_eq!(scan_guests(&payload, 7, host), vec![Guest { steam: friend, guest_id: 2 }]);
+        assert_eq!(
+            scan_guests(&payload, 7, host),
+            vec![Guest {
+                steam: friend,
+                guest_id: 2
+            }]
+        );
     }
 
     #[test]
     fn invite_created_callback_is_not_a_guest() {
         // Real 1100011 payload head from Steam when a link slot is created (guest 1, group 3)
         let hex = "01000000000000000000000001000000030000000000000000000000000000000000000000000000d2c4040000000000030000000101010000187d6cf3010000";
-        let payload: Vec<u8> = (0..hex.len()).step_by(2).map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap()).collect();
+        let payload: Vec<u8> = (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+            .collect();
         assert!(scan_guests(&payload, 3, STEAM_ID_BASE + 111).is_empty());
     }
 
@@ -824,7 +998,16 @@ mod tests {
     fn claimed_link_slot_is_addressed_only_by_its_account() {
         let friend = STEAM_ID_BASE + 222;
         assert_eq!(input_targets(2, &[]), vec![(0, 1), (0, 2)]);
-        assert_eq!(input_targets(2, &[Guest { steam: friend, guest_id: 1 }]), vec![(0, 2), (friend, 1)]);
+        assert_eq!(
+            input_targets(
+                2,
+                &[Guest {
+                    steam: friend,
+                    guest_id: 1
+                }]
+            ),
+            vec![(0, 2), (friend, 1)]
+        );
         assert_eq!(input_targets(0, &[]), vec![]);
     }
 

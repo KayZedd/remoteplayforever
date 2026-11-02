@@ -1,23 +1,48 @@
+<div align="center">
+
 # RemotePlayForever
 
+**Steam Remote Play Together for any game.**<br>
+Emulators, GOG, Epic, non-Steam games and Steam games that never enabled it.
+
 [![Release](https://img.shields.io/github/v/release/KayZedd/remoteplayforever?color=blue)](https://github.com/KayZedd/remoteplayforever/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/KayZedd/remoteplayforever/total?color=brightgreen)](https://github.com/KayZedd/remoteplayforever/releases)
+[![CI](https://github.com/KayZedd/remoteplayforever/actions/workflows/ci.yml/badge.svg)](https://github.com/KayZedd/remoteplayforever/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey.svg)](#limitations)
 
-Steam Remote Play Together for any game: Steam games that never enabled it, non-Steam games, emulators, GOG and Epic titles.
+### [⬇ Download the installer](https://github.com/KayZedd/remoteplayforever/releases/latest)
 
-Pick a game, press launch, send the link. Your friend joins from Steam or the free Steam Link app and needs neither the game nor a fast computer.
+English | [Polski](README.pl.md)
 
-**[Download Latest Installer (.exe)](https://github.com/KayZedd/remoteplayforever/releases/latest)**
+<img src="docs/img/launch.png" alt="RemotePlayForever: Launch tab with a Steam game selected" width="720">
 
-- No donor game, nothing to configure in Steam.
-- Nothing is changed in the game's folder.
-- Windows x64. English and Polish interface.
+</div>
+
+Pick a game, press launch, send the link. Your friend joins from Steam or the free **Steam Link** app (PC, Mac, Linux, Android, iOS, TV) and needs neither the game nor a fast computer.
+
+- **No donor game.** Nothing to own, nothing to configure in Steam.
+- **Nothing is changed in the game's folder.**
+- **Guest controllers work** in non-Steam games too, through Steam's own overlay and Steam Input.
+- **Built to survive Steam updates.** Steam's internal methods are found by name at runtime, not by hardcoded offsets.
+- **One click per extra guest.** Live switches for each guest's keyboard, mouse and controller.
+- English and Polish interface.
+
+## Works with
+
+| Source | For example | Guests see |
+|---|---|---|
+| Emulators | Ryujinx, Yuzu forks, RetroArch, PCSX2, Dolphin, Cemu | Your desktop |
+| GOG, Epic, itch.io, standalone `.exe` | anything you can start from an `.exe` | Your desktop |
+| Steam games without Remote Play Together | any installed Steam game | The game window |
+| Steam games with Remote Play Together | works too, with the extra guest and input controls | The game window |
+
+Anything that starts from an `.exe` can be launched. Titles people actually played are in the [compatibility list](docs/COMPATIBILITY.md). Played something? [Report it](https://github.com/KayZedd/remoteplayforever/issues/new?template=game_report.yml).
 
 ## Quick start
 
 1. Start **Steam** and sign in.
-2. Run `remoteplayforever.exe`.
+2. [Install](https://github.com/KayZedd/remoteplayforever/releases/latest) and run **RemotePlayForever**.
 3. On the **Launch** tab pick the game's `.exe` (or pick a title on the **Steam games** tab) and press **Launch with Remote Play Together**.
 4. A few seconds later the **guest link** is on your clipboard. Send it to a friend.
 5. Close the game or press **End session** to disconnect the guests.
@@ -25,6 +50,30 @@ Pick a game, press launch, send the link. Your friend joins from Steam or the fr
 The session card shows the link, an **Another guest** button (one link is for one person) and live switches for the guests' keyboard, mouse and controller.
 
 Language, default guest permissions and clipboard behaviour are on the **Settings** tab.
+
+<details>
+<summary><b>More screenshots</b></summary>
+<br>
+
+| Steam games | Built-in guide | Settings |
+|---|---|---|
+| <img src="docs/img/steam-games.png" alt="Steam games tab" width="280"> | <img src="docs/img/guide.png" alt="Guide tab" width="280"> | <img src="docs/img/settings.png" alt="Settings tab" width="280"> |
+
+</details>
+
+## FAQ
+
+**Does my friend need the game?** No. They need a Steam account or the free Steam Link app. The game runs on your PC and is streamed to them.
+
+**Is it safe? Will I get banned?** The app does not read or write game memory and does not touch the game's files. For non-Steam games it loads Steam's own `GameOverlayRenderer64.dll`, the same overlay Steam puts into every game it starts. Games with kernel anti-cheat (EAC, BattlEye, Vanguard) may still object to an unusual launch, so do not use it with competitive online games. No guarantees: it relies on undocumented Steam internals.
+
+**Why does my antivirus complain?** The app attaches to Steam and loads the overlay module into another process, which some heuristic engines flag. Releases after 0.1.0 are built by [GitHub Actions](.github/workflows/release.yml) from the tagged commit and carries a build provenance attestation and SHA-256 checksums, see [Verifying a download](#verifying-a-download).
+
+**The guest's controller does nothing in a non-Steam game.** See [Controller ignored by a non-Steam game?](#controller-ignored-by-a-non-steam-game) below. One-time setup in Shift+Tab.
+
+**Steam Deck / Linux / macOS host?** No. The host must be Windows x64. Guests can use any platform.
+
+**Something broke after a Steam update.** [Open an issue](https://github.com/KayZedd/remoteplayforever/issues/new?template=bug_report.yml) with `%LOCALAPPDATA%\RemotePlayForever\launch.log` attached.
 
 ## How it works
 
@@ -88,13 +137,27 @@ remoteplayforever.exe --cli
 remoteplayforever.exe --list-games
 ```
 
+## Verifying a download
+
+Releases after 0.1.0 are built by GitHub Actions and every `.exe` carries a build provenance attestation. Check it with the [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh attestation verify RemotePlayForever-Setup-X.Y.Z.exe --repo KayZedd/remoteplayforever
+```
+
+Or compare the SHA-256 against `SHA256SUMS.txt` from the same release:
+
+```powershell
+Get-FileHash .\RemotePlayForever-Setup-X.Y.Z.exe -Algorithm SHA256
+```
+
 ## Limitations
 
 - Windows x64 with a running, signed-in Steam client.
 - A non-Steam game is shared as the **whole desktop**, not a single window.
 - For a Steam game the app starts the game's default launch option. Picking another `.exe` from its folder (a mod loader, say) still starts the game through Steam.
 - It relies on Steam internals. A large client update may need a new release. Each session is logged to `%LOCALAPPDATA%\RemotePlayForever\launch.log`.
-- Antivirus false positives: Because the app attaches to Steam and loads overlay modules into other processes, some heuristic antivirus engines might flag it. Binaries are built transparently via GitHub Actions.
+- Antivirus false positives are possible, see the [FAQ](#faq).
 - Not affiliated with Valve. Use at your own risk.
 
 ### For maintainers: when Valve changes a signature
@@ -125,10 +188,28 @@ Layout:
 | [src/gui.rs](src/gui.rs), [src/ui.rs](src/ui.rs) | Window and console interfaces |
 | [src/i18n.rs](src/i18n.rs) | Interface language |
 
+### CI and releases
+
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml): every push to `master` and every PR runs `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` and a release build on `windows-latest`. The `.exe` is attached to the run as an artifact.
+- [`.github/workflows/release.yml`](.github/workflows/release.yml): pushing a tag `vX.Y.Z` builds the installer and publishes a GitHub release with the installer, the bare `.exe` and `SHA256SUMS.txt`, plus a build provenance attestation for each `.exe`. The tag must match `version` in `Cargo.toml` and `MyAppVersion` in `installer/installer.iss`, otherwise the job fails.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+### Screenshots and social preview
+
+- `docs/img/*.png` are taken from the real app under wine on Linux with a fake Steam library: `docs/screenshots/capture.sh` (see the comments at its top).
+- `docs/img/social-preview.png` (upload it in **Settings -> General -> Social preview**) is rendered from [`docs/social-preview.html`](docs/social-preview.html) by `docs/make-social-preview.sh`.
+
 ## Credits
 
 - [RemotePlayWhatever](https://github.com/m4dEngi/RemotePlayWhatever) by m4dEngi: the original technique.
 - [RemotePlayForge](https://github.com/okabeeer/RemotePlayForge) by okabeeer (MIT): resolving methods by name and the group -> invite -> input sequence.
+
+## Support the project
+
+If it saved you buying a second copy of a game, a ⭐ helps other people find it. Bug reports and [compatibility reports](https://github.com/KayZedd/remoteplayforever/issues/new?template=game_report.yml) help even more.
 
 ## License
 
