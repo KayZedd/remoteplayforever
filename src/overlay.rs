@@ -12,6 +12,19 @@
 
 use crate::runner::log;
 use std::path::Path;
+use std::process::Command;
+
+fn game_command(target: &Path, args: &[String]) -> Command {
+    let mut command = crate::runner::command_for(target);
+    command.args(args);
+    // SDL filters Steam's emulated controllers unless the game opts in. Steam
+    // normally supplies this when it launches a game; loading the overlay here
+    // does not. Set it only on the child so SDL games can see local Steam Input
+    // controllers and Remote Play Together guests, without changing the GUI's
+    // environment or disabling SDL's other device filters.
+    command.env("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD", "1");
+    command
+}
 
 /// Run `target` under the overlay and wait for it. Returns the process exit code.
 pub fn run_launcher(game_id: u32, target: &Path, args: &[String]) -> i32 {
@@ -29,8 +42,7 @@ pub fn run_launcher(game_id: u32, target: &Path, args: &[String]) -> i32 {
         )),
     }
 
-    let mut command = crate::runner::command_for(target);
-    command.args(args);
+    let mut command = game_command(target, args);
     match command.spawn() {
         Ok(mut child) => {
             log(&format!(
@@ -74,4 +86,26 @@ fn load_overlay() -> Result<String, String> {
         return Err(format!("LoadLibrary failed for {}", dll.display()));
     }
     Ok(dll.display().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launched_child_can_read_the_sdl_steam_virtual_gamepad_opt_in() {
+        let key = "SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD";
+        let parent_value = std::env::var_os(key);
+        let shell = std::env::var_os("COMSPEC").expect("Windows command interpreter");
+        let output = game_command(
+            Path::new(&shell),
+            &["/d".into(), "/c".into(), format!("echo %{key}%")],
+        )
+        .output()
+        .expect("launch child to inspect its environment");
+
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "1");
+        assert_eq!(std::env::var_os(key), parent_value);
+    }
 }
