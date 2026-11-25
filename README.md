@@ -49,7 +49,9 @@ Anything that starts from an `.exe` can be launched. Titles people actually play
 
 The session card shows the link, an **Another guest** button (one link is for one person) and live switches for the guests' keyboard, mouse and controller.
 
-Language, default guest permissions and clipboard behaviour are on the **Settings** tab.
+You can also drag the game's `.exe` onto the window, or press Enter in the path field.
+
+Language (follows Windows on first start), default guest permissions, clipboard behaviour and the update check are on the **Settings** tab. The update check is one anonymous request to github.com on start and can be switched off.
 
 <details>
 <summary><b>More screenshots</b></summary>
@@ -68,6 +70,8 @@ Language, default guest permissions and clipboard behaviour are on the **Setting
 **Is it safe? Will I get banned?** The app does not read or write game memory and does not touch the game's files. For non-Steam games it loads Steam's own `GameOverlayRenderer64.dll`, the same overlay Steam puts into every game it starts. Games with kernel anti-cheat (EAC, BattlEye, Vanguard) may still object to an unusual launch, so do not use it with competitive online games. No guarantees: it relies on undocumented Steam internals.
 
 **Why does my antivirus complain?** The app attaches to Steam and loads the overlay module into another process, which some heuristic engines flag. Releases after 0.1.0 are built by [GitHub Actions](.github/workflows/release.yml) from the tagged commit and carries a build provenance attestation and SHA-256 checksums, see [Verifying a download](#verifying-a-download).
+
+**Windows says "Windows protected your PC" (SmartScreen).** Releases are not code-signed yet, so a fresh download is unknown to SmartScreen. Verify the file ([Verifying a download](#verifying-a-download)), then **More info**, **Run anyway**. See [SECURITY.md](SECURITY.md).
 
 **The guest's controller does nothing in a non-Steam game.** See [Controller ignored by a non-Steam game?](#controller-ignored-by-a-non-steam-game) below. One-time setup in Shift+Tab.
 
@@ -185,6 +189,7 @@ Layout:
 | [src/overlay.rs](src/overlay.rs) | Launcher that starts a non-Steam game with the Steam overlay |
 | [src/session.rs](src/session.rs) | Line protocol between the app and the session host |
 | [src/runner.rs](src/runner.rs) | Launch plan and the game + session lifecycle |
+| [src/update.rs](src/update.rs) | "New version" lookup against GitHub releases |
 | [src/gui.rs](src/gui.rs), [src/ui.rs](src/ui.rs) | Window and console interfaces |
 | [src/i18n.rs](src/i18n.rs) | Interface language |
 

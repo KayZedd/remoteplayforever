@@ -38,6 +38,9 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+      - name: Release script tests
+        run: python scripts/test_bump_version.py
+
       - name: Build release
         run: cargo build --release --locked
 
@@ -46,3 +49,12 @@ jobs:
           name: remoteplayforever-${{ github.sha }}
           path: target/release/remoteplayforever.exe
           retention-days: 14
+
+  deny:
+    name: dependency audit (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources

@@ -49,7 +49,9 @@ Uruchomić można wszystko, co startuje z `.exe`. Gry, w które ktoś faktycznie
 
 Panel sesji pokazuje link, przycisk **Kolejny gość** (jeden link to jedna osoba) i przełączniki klawiatury, myszy i pada gości na żywo.
 
-Język, domyślne uprawnienia gości i kopiowanie linku do schowka są na zakładce **Ustawienia**.
+Plik `.exe` gry możesz też przeciągnąć na okno albo wcisnąć Enter w polu ścieżki.
+
+Język (przy pierwszym starcie zgodny z Windows), domyślne uprawnienia gości, kopiowanie linku do schowka i sprawdzanie aktualizacji są na zakładce **Ustawienia**. Sprawdzanie to jedno anonimowe zapytanie do github.com przy starcie, można je wyłączyć.
 
 <details>
 <summary><b>Więcej screenów</b></summary>
@@ -66,6 +68,8 @@ Język, domyślne uprawnienia gości i kopiowanie linku do schowka są na zakła
 **Czy znajomy musi mieć grę?** Nie. Wystarczy konto Steam albo darmowa aplikacja Steam Link. Gra działa na Twoim PC i jest do niego streamowana.
 
 **Czy to bezpieczne? Dostanę bana?** Aplikacja nie czyta ani nie zapisuje pamięci gry i nie dotyka jej plików. Przy grach spoza Steama ładuje własny `GameOverlayRenderer64.dll` Steama, ten sam overlay, który Steam wkłada do każdej uruchamianej gry. Gry z anty-cheatem na poziomie jądra (EAC, BattlEye, Vanguard) mogą mimo to nie zaakceptować nietypowego uruchomienia, więc nie używaj tego z rywalizacyjnymi grami online. Bez gwarancji: aplikacja korzysta z nieudokumentowanych mechanizmów Steama.
+
+**Windows pokazuje "System Windows ochronił ten komputer" (SmartScreen).** Wydania nie są jeszcze podpisane certyfikatem, więc świeżo pobrany plik jest dla SmartScreen nieznany. Zweryfikuj plik ([Weryfikacja pobranego pliku](#weryfikacja-pobranego-pliku)), potem **Więcej informacji**, **Uruchom mimo to**. Szczegóły: [SECURITY.md](SECURITY.md).
 
 **Czemu antywirus krzyczy?** Aplikacja podpina się pod Steama i ładuje moduł overlayu do innego procesu, co niektóre silniki heurystyczne oznaczają. Wydania po 0.1.0 są budowane przez [GitHub Actions](.github/workflows/release.yml) z otagowanego commita i ma atestację pochodzenia buildu oraz sumy SHA-256, zobacz [Weryfikacja pobranego pliku](#weryfikacja-pobranego-pliku).
 

@@ -49,6 +49,43 @@ jobs:
         shell: pwsh
         run: ./build_installer.ps1
 
+      # Code signing is optional: it runs only when the repository variable SIGNPATH_ORGANIZATION_ID
+      # is set (see SECURITY.md). Without it the release is unsigned but still attested and checksummed.
+      - name: Stage binaries for signing
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force unsigned | Out-Null
+          Copy-Item dist\RemotePlayForever-Setup-*.exe unsigned\
+          Copy-Item target\release\remoteplayforever.exe unsigned\
+
+      - name: Upload unsigned binaries
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        id: upload-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned
+          path: unsigned/*.exe
+
+      - name: Sign with SignPath
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: remoteplayforever
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Use the signed binaries
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          Copy-Item signed\RemotePlayForever-Setup-*.exe dist\ -Force
+          Copy-Item signed\remoteplayforever.exe target\release\remoteplayforever.exe -Force
+
       - name: Collect assets and checksums
         shell: pwsh
         run: |
