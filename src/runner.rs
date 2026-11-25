@@ -28,9 +28,25 @@ pub fn get_log_path() -> PathBuf {
     dir.join("launch.log")
 }
 
+/// Logs above this size are moved to `launch.log.old` so the file cannot grow without bound.
+const MAX_LOG_BYTES: u64 = 1024 * 1024;
+
+/// Moves `path` to `path` + `.old` (replacing an older copy) when it is larger than `max_bytes`.
+/// Returns whether it rotated.
+fn rotate_log(path: &Path, max_bytes: u64) -> bool {
+    let too_big = std::fs::metadata(path).is_ok_and(|m| m.len() > max_bytes);
+    if !too_big {
+        return false;
+    }
+    let mut old = path.as_os_str().to_owned();
+    old.push(".old");
+    std::fs::rename(path, PathBuf::from(old)).is_ok()
+}
+
 pub fn log(msg: &str) {
     use std::io::Write;
     let path = get_log_path();
+    rotate_log(&path, MAX_LOG_BYTES);
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -396,6 +412,39 @@ fn run_launch(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_file(name: &str, bytes: usize) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("rpf-test-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("launch.log");
+        std::fs::write(&path, vec![b'x'; bytes]).unwrap();
+        path
+    }
+
+    #[test]
+    fn small_log_is_left_alone() {
+        let path = temp_file("small", 10);
+        assert!(!rotate_log(&path, 100));
+        assert!(path.exists());
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn large_log_is_rotated_and_replaces_the_old_copy() {
+        let path = temp_file("large", 200);
+        let old = path.with_extension("log.old");
+        std::fs::write(&old, b"older").unwrap();
+        assert!(rotate_log(&path, 100));
+        assert!(!path.exists());
+        assert_eq!(std::fs::metadata(&old).unwrap().len(), 200);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn missing_log_does_not_rotate() {
+        assert!(!rotate_log(Path::new("definitely/not/here.log"), 1));
+    }
 
     #[test]
     fn clean_target_path_strips_quotes_and_separators() {

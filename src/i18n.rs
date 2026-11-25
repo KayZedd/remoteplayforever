@@ -24,6 +24,35 @@ impl Language {
     }
 }
 
+/// Language for a locale name such as `pl-PL` or `en-US`; anything but Polish gets English.
+pub fn language_from_locale(locale: &str) -> Language {
+    let primary = locale.split(['-', '_']).next().unwrap_or("");
+    if primary.eq_ignore_ascii_case("pl") {
+        Language::Polish
+    } else {
+        Language::English
+    }
+}
+
+/// The Windows display language, used on first start before the user has chosen one.
+pub fn system_language() -> Language {
+    #[cfg(windows)]
+    {
+        let mut buf = [0u16; 85];
+        // SAFETY: the buffer is 85 u16 long (LOCALE_NAME_MAX_LENGTH) and the length is passed along.
+        let len = unsafe {
+            windows_sys::Win32::Globalization::GetUserDefaultLocaleName(
+                buf.as_mut_ptr(),
+                buf.len() as i32,
+            )
+        };
+        if len > 1 {
+            return language_from_locale(&String::from_utf16_lossy(&buf[..len as usize - 1]));
+        }
+    }
+    Language::English
+}
+
 static CURRENT: AtomicU8 = AtomicU8::new(Language::English as u8);
 
 pub fn set_language(language: Language) {
@@ -64,6 +93,16 @@ mod tests {
     fn pick_follows_the_language() {
         assert_eq!(pick(Language::Polish, "Play", "Graj"), "Graj");
         assert_eq!(pick(Language::English, "Play", "Graj"), "Play");
+    }
+
+    #[test]
+    fn locale_names_map_to_a_language() {
+        assert_eq!(language_from_locale("pl-PL"), Language::Polish);
+        assert_eq!(language_from_locale("pl"), Language::Polish);
+        assert_eq!(language_from_locale("PL_pl"), Language::Polish);
+        assert_eq!(language_from_locale("en-US"), Language::English);
+        assert_eq!(language_from_locale("de-DE"), Language::English);
+        assert_eq!(language_from_locale(""), Language::English);
     }
 
     #[test]

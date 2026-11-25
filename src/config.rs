@@ -33,6 +33,8 @@ pub struct Config {
     pub guest_mouse: bool,
     /// Put each new guest link on the clipboard
     pub copy_link_automatically: bool,
+    /// Ask GitHub once per start whether a newer release exists
+    pub check_for_updates: bool,
     pub recent_games: Vec<RecentGame>,
 }
 
@@ -44,6 +46,7 @@ impl Default for Config {
             guest_keyboard: true,
             guest_mouse: true,
             copy_link_automatically: true,
+            check_for_updates: true,
             recent_games: Vec::new(),
         }
     }
@@ -65,7 +68,11 @@ impl Config {
         {
             return cfg;
         }
-        let default = Self::default();
+        // First start: follow the system language until the user picks one.
+        let default = Self {
+            language: crate::i18n::system_language(),
+            ..Self::default()
+        };
         let _ = default.save();
         default
     }
@@ -111,6 +118,16 @@ impl Config {
         }
 
         let _ = self.save();
+    }
+
+    /// Drop one entry from the recent games list.
+    pub fn remove_recent(&mut self, path: &Path) {
+        self.forget(path);
+        let _ = self.save();
+    }
+
+    fn forget(&mut self, path: &Path) {
+        self.recent_games.retain(|g| g.path != path);
     }
 
     pub fn resolve_controller_allowed(&self, target_path: &Path) -> bool {
@@ -190,6 +207,30 @@ mod tests {
         assert_eq!(cfg.language, Language::English);
         assert_eq!(cfg.guest_controller_mode, GuestControllerMode::Auto);
         assert!(cfg.guest_keyboard && cfg.guest_mouse && cfg.copy_link_automatically);
+        assert!(cfg.check_for_updates);
+    }
+
+    #[test]
+    fn config_from_an_older_version_gets_update_checks_on() {
+        let cfg: Config = serde_json::from_str(r#"{"language":"Polish"}"#).unwrap();
+        assert!(cfg.check_for_updates);
+        assert_eq!(cfg.language, Language::Polish);
+    }
+
+    #[test]
+    fn remove_recent_drops_only_that_entry() {
+        let mut cfg = Config::default();
+        for name in ["a", "b", "c"] {
+            cfg.recent_games.push(RecentGame {
+                name: name.into(),
+                path: PathBuf::from(format!("{name}.exe")),
+                args: vec![],
+                last_played: String::new(),
+            });
+        }
+        cfg.forget(Path::new("b.exe"));
+        let names: Vec<_> = cfg.recent_games.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, ["a", "c"]);
     }
 
     #[test]

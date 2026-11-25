@@ -11,6 +11,7 @@ mod runner;
 mod session;
 mod steam;
 mod ui;
+mod update;
 
 use anyhow::Result;
 use clap::Parser;

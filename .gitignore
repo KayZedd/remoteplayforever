@@ -1,3 +1,4 @@
 /target
 /dist
 *.exe
+__pycache__/

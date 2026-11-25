@@ -4,7 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- Application icon (window, taskbar, installer) and Windows version information embedded in the exe.
+- Drag a game's `.exe` onto the window to select it; Enter in the path field launches.
+- "New version available" banner from a single anonymous GitHub releases lookup on start; switch in Settings.
+- Header shows when Steam is not running, with a "Start Steam" button; the status refreshes every 2 seconds.
+- Tooltips for the guest input switches, Copy and End session; recent games can be removed one by one and show when they were last played; Steam games list is sorted and counts results.
+- First start follows the Windows display language.
+- `scripts/bump_version.py` (version in Cargo.toml, Cargo.lock, installer.iss and CHANGELOG in one step), `SECURITY.md`, `CONTRIBUTING.md`.
+- CI: `cargo deny` audit and release-script tests. Release workflow signs the installer and the portable exe with SignPath when `SIGNPATH_ORGANIZATION_ID` is configured.
+
 ### Changed
+- Release builds use thin LTO, one codegen unit and stripped symbols (smaller exe).
+- `launch.log` rotates at 1 MB (previous log kept as `launch.log.old`).
+- A guest appearing twice in the session card is listed once.
+- Dependencies updated for RUSTSEC-2026-0592 (`url` 2.5.9).
 - The installer-free release asset is now named `remoteplayforever-X.Y.Z-portable.exe` (was `-x64.exe`) and is described in the release notes and README.
 
 ## [0.1.1] - 2026-11-02
