@@ -31,6 +31,9 @@ pub struct Config {
     /// Guests may use the keyboard / mouse as soon as they join
     pub guest_keyboard: bool,
     pub guest_mouse: bool,
+    pub forward_motion: bool,
+    pub motion_ip: String,
+    pub motion_port: u16,
     /// Put each new guest link on the clipboard
     pub copy_link_automatically: bool,
     /// Ask GitHub once per start whether a newer release exists
@@ -45,6 +48,9 @@ impl Default for Config {
             guest_controller_mode: GuestControllerMode::default(),
             guest_keyboard: true,
             guest_mouse: true,
+            forward_motion: false,
+            motion_ip: "127.0.0.1".into(),
+            motion_port: 26760,
             copy_link_automatically: true,
             check_for_updates: true,
             recent_games: Vec::new(),
@@ -207,6 +213,11 @@ mod tests {
         assert_eq!(cfg.language, Language::English);
         assert_eq!(cfg.guest_controller_mode, GuestControllerMode::Auto);
         assert!(cfg.guest_keyboard && cfg.guest_mouse && cfg.copy_link_automatically);
+        assert!(!cfg.forward_motion);
+        assert_eq!(
+            (cfg.motion_ip.as_str(), cfg.motion_port),
+            ("127.0.0.1", 26760)
+        );
         assert!(cfg.check_for_updates);
     }
 

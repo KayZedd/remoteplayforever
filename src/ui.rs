@@ -175,6 +175,7 @@ impl UI {
 
         while let Some(event) = launch.wait_event() {
             match event {
+                HostEvent::MotionDisabled => {}
                 HostEvent::Status(msg) => println!("⏳ {msg}"),
                 HostEvent::Link(url) => {
                     if config.copy_link_automatically {

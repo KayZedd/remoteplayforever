@@ -5,6 +5,7 @@ mod config;
 mod gui;
 mod i18n;
 mod installer;
+mod motion;
 mod overlay;
 mod rpt;
 mod runner;
@@ -39,6 +40,9 @@ struct Cli {
     /// List installed Steam games and exit
     #[arg(long)]
     list_games: bool,
+
+    #[arg(long, hide = true)]
+    motion_worker: Option<String>,
 
     /// Internal: session host process for the given AppID
     #[arg(long, hide = true, value_name = "APPID")]
@@ -101,6 +105,10 @@ fn main() -> Result<()> {
         }
     };
 
+    if let Some(address) = cli.motion_worker {
+        return motion::worker(&address);
+    }
+
     let mut config = config::Config::load();
     i18n::set_language(config.language);
 
@@ -121,7 +129,7 @@ fn main() -> Result<()> {
             mouse: !cli.no_mouse,
             controller: !cli.no_controller,
         };
-        std::process::exit(rpt::run_host(appid, cli.desktop_stream, inputs));
+        std::process::exit(rpt::run_host(appid, cli.desktop_stream, inputs, &config));
     }
 
     runner::log("--- RemotePlayForever started ---");

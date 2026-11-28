@@ -113,6 +113,10 @@ The session runs in a separate helper process (`remoteplayforever.exe --host-ses
 - They get the keyboard and mouse, and a controller when the game supports one (setting **Guest controller**: automatic / on / off).
 - The stream's frame limit is set by the guest: Steam -> Settings -> Remote Play -> advanced client options -> **Framerate limit** (up to 240 FPS). The host cannot raise it.
 
+### Guest motion for emulators
+
+Toggle **Motion** under **Guests may use** during a session, or enable **Forward guest motion (Cemuhook UDP)** in Settings as the default. Motion is forwarded while controller input is allowed. Set the emulator to the same local IPv4 address and port (default: 127.0.0.1:26760). Remote controllers use their Steam gamepad slots 0 through 3. Bind motion for each player in the emulator. Both the portable EXE and the installer use Steam Input from the host’s Steam installation.
+
 ### Controller ignored by a non-Steam game?
 
 A non-Steam game is registered under id `480` (Spacewar), and Steam Input has its own layouts for that id: Spacewar's action set for Xbox controllers, an empty one for DualSense. Neither behaves like a plain gamepad, so the game sees no input. Once:

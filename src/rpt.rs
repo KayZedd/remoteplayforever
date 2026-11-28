@@ -17,6 +17,7 @@
 use crate::i18n::tr;
 use crate::runner::log;
 use crate::session::{GuestInputs, HostCommand, HostEvent, InputKind};
+use crate::steam::vfn;
 use std::collections::HashMap;
 use std::ffi::{c_char, c_void};
 use std::io::{BufRead, Write};
@@ -224,10 +225,6 @@ pub fn input_targets(max_invited_guest: u32, guests: &[Guest]) -> Vec<(u64, u32)
 type CreateInterfaceFn = unsafe extern "C" fn(*const c_char, *mut i32) -> *mut c_void;
 type BGetCallbackFn = unsafe extern "C" fn(i32, *mut CallbackMsg) -> u8;
 type FreeLastCallbackFn = unsafe extern "C" fn(i32);
-
-unsafe fn vfn(obj: *mut c_void, index: usize) -> *const c_void {
-    unsafe { *(*(obj as *const *const *const c_void)).add(index) }
-}
 
 struct Host {
     rcm: *mut c_void,
@@ -714,7 +711,10 @@ impl Host {
         self.pump(Duration::from_millis(300));
     }
 
-    fn run(&mut self, commands: Receiver<HostCommand>) {
+    fn run(&mut self, commands: Receiver<HostCommand>, config: &crate::config::Config) {
+        let address = format!("{}:{}", config.motion_ip, config.motion_port);
+        let mut forward_motion = config.forward_motion;
+        let mut motion: Option<crate::motion::Worker> = None;
         let mut last_publish = Instant::now();
         loop {
             let callbacks = self.poll();
@@ -726,6 +726,7 @@ impl Host {
             loop {
                 match commands.try_recv() {
                     Ok(HostCommand::Stop) | Err(mpsc::TryRecvError::Disconnected) => return,
+                    Ok(HostCommand::SetMotion(on)) => forward_motion = on,
                     Ok(HostCommand::AddLink) => {
                         self.add_guest_link();
                     }
@@ -739,6 +740,24 @@ impl Host {
                     }
                     Err(mpsc::TryRecvError::Empty) => break,
                 }
+            }
+
+            let result = if !forward_motion {
+                motion = None;
+                Ok(())
+            } else if let Some(bridge) = &mut motion {
+                bridge.update(self.want.controller)
+            } else {
+                crate::motion::Worker::start(self.appid, &address, self.want.controller)
+                    .map(|worker| motion = Some(worker))
+            };
+            if let Err(e) = result {
+                forward_motion = false;
+                emit(HostEvent::MotionDisabled);
+                let message = format!("Motion forwarding stopped: {e:#}");
+                log(&message);
+                status(&message);
+                motion = None;
             }
 
             if last_publish.elapsed() > Duration::from_secs(2) {
@@ -772,7 +791,12 @@ unsafe fn module_image(base: usize) -> Option<&'static [u8]> {
 }
 
 /// Entry point of `--host-session`. Returns the process exit code.
-pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
+pub fn run_host(
+    appid: u32,
+    desktop_stream: bool,
+    inputs: GuestInputs,
+    config: &crate::config::Config,
+) -> i32 {
     log(&format!(
         "rpt: host starting appid={appid} desktop_stream={desktop_stream} inputs={inputs:?}"
     ));
@@ -829,7 +853,7 @@ pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
     host.show_overlay();
     emit(HostEvent::Ready);
 
-    host.run(commands);
+    host.run(commands, config);
 
     status(tr("Ending the session...", "Kończenie sesji..."));
     host.teardown();
