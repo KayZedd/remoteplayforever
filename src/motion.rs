@@ -191,11 +191,12 @@ fn data(slot: usize, m: Motion, seq: u32, us: u64) -> [u8; 80] {
     out[12..16].copy_from_slice(&seq.to_le_bytes());
     out[20..24].fill(128);
     out[48..56].copy_from_slice(&us.to_le_bytes());
-    let axes = m
-        .accel
+    let [ax, ay, az] = m.accel;
+    let [gx, gy, gz] = m.gyro;
+    let axes = [-ax, -az, ay]
         .map(|x| x / 16384.)
         .into_iter()
-        .chain(m.gyro.map(|x| x * 2000. / 32768.));
+        .chain([gx, -gz, -gy].map(|x| x * 2000. / 32768.));
     for (dest, v) in out[56..].as_chunks_mut::<4>().0.iter_mut().zip(axes) {
         dest.copy_from_slice(&v.to_le_bytes())
     }
@@ -391,15 +392,21 @@ mod tests {
     fn motion_packet_uses_dsu_slots_and_units() {
         let sample = Motion {
             orientation: [0.; 4],
-            accel: [16384., 0., -16384.],
-            gyro: [0., 16384., 0.],
+            accel: [8192., 4096., -16384.],
+            gyro: [8192., 4096., -16384.],
         };
         let bytes = packet(DATA, &data(2, sample, 7, 42), 1);
         assert_eq!(bytes.len(), 100);
         assert_eq!(bytes[20], 2);
         assert_eq!(&bytes[68..76], &42u64.to_le_bytes());
-        assert_eq!(&bytes[76..80], &1f32.to_le_bytes());
-        assert_eq!(&bytes[92..96], &1000f32.to_le_bytes());
+        for (axis, expected) in bytes[76..]
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip([-0.5_f32, 1., 0.25, 500., 1000., -250.])
+        {
+            assert_eq!(f32::from_le_bytes(*axis), expected);
+        }
         assert!(endpoint("127.0.0.2", 26761).is_ok());
         assert!(endpoint("0.0.0.0", 26760).is_err());
         assert!(endpoint("127.0.0.1", 0).is_err());
