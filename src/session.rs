@@ -33,6 +33,7 @@ pub enum HostEvent {
     Status(String),
     Link(String),
     GuestConnected,
+    MotionDisabled,
     Player { slot: u32, steam: u64, name: String },
     Error(String),
     Ready,
@@ -43,6 +44,7 @@ pub enum HostEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostCommand {
     AddLink,
+    SetMotion(bool),
     SetInput(InputKind, bool),
     Stop,
 }
@@ -56,6 +58,7 @@ impl HostEvent {
         let body = match self {
             HostEvent::Status(s) => format!("STATUS {}", one_line(s)),
             HostEvent::Link(u) => format!("LINK {}", one_line(u)),
+            HostEvent::MotionDisabled => "MOTION_DISABLED".into(),
             HostEvent::GuestConnected => "GUEST_CONNECTED".to_string(),
             HostEvent::Player { slot, steam, name } => {
                 format!("PLAYER {slot} {steam} {}", one_line(name))
@@ -82,6 +85,7 @@ impl HostEvent {
                 Some(HostEvent::Player { slot, steam, name })
             }
             "ERROR" => Some(HostEvent::Error(rest.to_string())),
+            "MOTION_DISABLED" => Some(HostEvent::MotionDisabled),
             "READY" => Some(HostEvent::Ready),
             "STOPPED" => Some(HostEvent::Stopped),
             _ => None,
@@ -93,6 +97,7 @@ impl HostCommand {
     pub fn to_line(self) -> String {
         match self {
             HostCommand::AddLink => "ADD".to_string(),
+            HostCommand::SetMotion(on) => format!("MOTION {}", u8::from(on)),
             HostCommand::Stop => "STOP".to_string(),
             HostCommand::SetInput(kind, on) => {
                 let k = match kind {
@@ -114,6 +119,7 @@ impl HostCommand {
             "STOP" => Some(HostCommand::Stop),
             "KBD" => Some(HostCommand::SetInput(InputKind::Keyboard, on()?)),
             "MOUSE" => Some(HostCommand::SetInput(InputKind::Mouse, on()?)),
+            "MOTION" => Some(HostCommand::SetMotion(on()?)),
             "CTRL" => Some(HostCommand::SetInput(InputKind::Controller, on()?)),
             _ => None,
         }
@@ -220,6 +226,7 @@ mod tests {
         let events = [
             HostEvent::Status("Creating the group".into()),
             HostEvent::Link("https://s.team/remoteplay/connect/abc".into()),
+            HostEvent::MotionDisabled,
             HostEvent::GuestConnected,
             HostEvent::Player {
                 slot: 2,
@@ -254,6 +261,8 @@ mod tests {
         let cmds = [
             HostCommand::AddLink,
             HostCommand::Stop,
+            HostCommand::SetMotion(true),
+            HostCommand::SetMotion(false),
             HostCommand::SetInput(InputKind::Keyboard, true),
             HostCommand::SetInput(InputKind::Mouse, false),
             HostCommand::SetInput(InputKind::Controller, true),

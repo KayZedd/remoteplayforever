@@ -33,6 +33,7 @@ struct SessionView {
     error: Option<String>,
     link: Option<String>,
     ready: bool,
+    motion: bool,
     guest_connected: bool,
     guests: Vec<String>,
     finished: bool,
@@ -59,6 +60,7 @@ impl SessionView {
                 self.link = Some(url.clone());
                 return copy_link.then_some(url);
             }
+            HostEvent::MotionDisabled => self.motion = false,
             HostEvent::Ready => self.ready = true,
             HostEvent::GuestConnected => self.guest_connected = true,
             HostEvent::Player { name, .. } => {
@@ -350,6 +352,7 @@ impl RemotePlayApp {
                 self.session = Some(ActiveSession {
                     launch,
                     view: SessionView {
+                        motion: self.config.forward_motion,
                         status: tr("Starting...", "Uruchamianie...").into(),
                         ..SessionView::default()
                     },
@@ -587,7 +590,7 @@ impl RemotePlayApp {
 
             if session.view.ready {
                 ui.add_space(4.0);
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new(tr("Guests may use:", "Goście mogą używać:")).strong());
                     for (label, kind, value) in [
                         (
@@ -623,6 +626,9 @@ impl RemotePlayApp {
                         if ui.checkbox(value, label).on_hover_text(hint).changed() {
                             session.launch.send(HostCommand::SetInput(kind, *value));
                         }
+                    }
+                    if ui.checkbox(&mut session.view.motion, tr("↻ Motion", "↻ Ruch")).on_hover_text(tr("Forward guest controller motion over Cemuhook UDP while controller input is allowed.", "Przekazuj ruch kontrolerów gości przez Cemuhook UDP, gdy kontrolery są dozwolone.")).changed() {
+                        session.launch.send(HostCommand::SetMotion(session.view.motion));
                     }
                 });
 
@@ -1203,6 +1209,38 @@ impl RemotePlayApp {
             changed |= ui
                 .checkbox(&mut self.config.guest_mouse, tr("🖱 Mouse", "🖱 Mysz"))
                 .changed();
+            changed |= ui
+                .checkbox(
+                    &mut self.config.forward_motion,
+                    tr(
+                        "↻ Forward guest motion (Cemuhook UDP)",
+                        "↻ Przekazuj ruch kontrolerów gości (Cemuhook UDP)",
+                    ),
+                )
+                .on_hover_text(tr("Applies to the next session.", "Od następnej sesji."))
+                .changed();
+            if self.config.forward_motion {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Local IP", "Lokalny IP"));
+                    changed |= ui
+                        .add(
+                            egui::TextEdit::singleline(&mut self.config.motion_ip)
+                                .desired_width(120.0),
+                        )
+                        .changed();
+                    ui.label("Port");
+                    changed |= ui
+                        .add(egui::DragValue::new(&mut self.config.motion_port).range(1..=65535))
+                        .changed();
+                });
+                if crate::motion::endpoint(&self.config.motion_ip, self.config.motion_port).is_err()
+                {
+                    ui.label(tr(
+                        "Enter a loopback IPv4 address (127.x.x.x) and a nonzero port.",
+                        "Podaj lokalny adres IPv4 (127.x.x.x) i niezerowy port.",
+                    ));
+                }
+            }
             ui.horizontal(|ui| {
                 ui.label(tr("🎮 Controller", "🎮 Kontroler"));
                 self.controller_mode_combo(

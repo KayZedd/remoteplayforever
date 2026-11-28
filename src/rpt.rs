@@ -714,7 +714,10 @@ impl Host {
         self.pump(Duration::from_millis(300));
     }
 
-    fn run(&mut self, commands: Receiver<HostCommand>) {
+    fn run(&mut self, commands: Receiver<HostCommand>, config: &crate::config::Config) {
+        let address = format!("{}:{}", config.motion_ip, config.motion_port);
+        let mut forward_motion = config.forward_motion;
+        let mut motion: Option<crate::motion::Worker> = None;
         let mut last_publish = Instant::now();
         loop {
             let callbacks = self.poll();
@@ -726,6 +729,7 @@ impl Host {
             loop {
                 match commands.try_recv() {
                     Ok(HostCommand::Stop) | Err(mpsc::TryRecvError::Disconnected) => return,
+                    Ok(HostCommand::SetMotion(on)) => forward_motion = on,
                     Ok(HostCommand::AddLink) => {
                         self.add_guest_link();
                     }
@@ -739,6 +743,24 @@ impl Host {
                     }
                     Err(mpsc::TryRecvError::Empty) => break,
                 }
+            }
+
+            let result = if !forward_motion {
+                motion = None;
+                Ok(())
+            } else if let Some(bridge) = &mut motion {
+                bridge.update(self.want.controller)
+            } else {
+                crate::motion::Worker::start(self.appid, &address, self.want.controller)
+                    .map(|worker| motion = Some(worker))
+            };
+            if let Err(e) = result {
+                forward_motion = false;
+                emit(HostEvent::MotionDisabled);
+                let message = format!("Motion forwarding stopped: {e:#}");
+                log(&message);
+                status(&message);
+                motion = None;
             }
 
             if last_publish.elapsed() > Duration::from_secs(2) {
@@ -772,7 +794,12 @@ unsafe fn module_image(base: usize) -> Option<&'static [u8]> {
 }
 
 /// Entry point of `--host-session`. Returns the process exit code.
-pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
+pub fn run_host(
+    appid: u32,
+    desktop_stream: bool,
+    inputs: GuestInputs,
+    config: &crate::config::Config,
+) -> i32 {
     log(&format!(
         "rpt: host starting appid={appid} desktop_stream={desktop_stream} inputs={inputs:?}"
     ));
@@ -829,7 +856,7 @@ pub fn run_host(appid: u32, desktop_stream: bool, inputs: GuestInputs) -> i32 {
     host.show_overlay();
     emit(HostEvent::Ready);
 
-    host.run(commands);
+    host.run(commands, config);
 
     status(tr("Ending the session...", "Kończenie sesji..."));
     host.teardown();
