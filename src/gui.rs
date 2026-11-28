@@ -198,7 +198,23 @@ fn controller_mode_name(mode: GuestControllerMode) -> &'static str {
     }
 }
 
+fn motion_label(text: &str) -> String {
+    format!("\u{e001} {text}")
+}
+
 fn apply_theme(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "motion".into(),
+        egui::FontData::from_static(include_bytes!("../assets/motion.ttf")).into(),
+    );
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Proportional)
+        .unwrap()
+        .insert(0, "motion".into());
+    ctx.set_fonts(fonts);
+
     ctx.set_theme(egui::Theme::Dark);
     ctx.all_styles_mut(|style| {
         use egui::{FontFamily::Proportional, FontId, TextStyle};
@@ -627,7 +643,7 @@ impl RemotePlayApp {
                             session.launch.send(HostCommand::SetInput(kind, *value));
                         }
                     }
-                    if ui.checkbox(&mut session.view.motion, tr("↻ Motion", "↻ Ruch")).on_hover_text(tr("Forward guest controller motion over Cemuhook UDP while controller input is allowed.", "Przekazuj ruch kontrolerów gości przez Cemuhook UDP, gdy kontrolery są dozwolone.")).changed() {
+                    if ui.checkbox(&mut session.view.motion, motion_label(tr("Motion", "Ruch"))).on_hover_text(tr("Forward guest controller motion over Cemuhook UDP while controller input is allowed.", "Przekazuj ruch kontrolerów gości przez Cemuhook UDP, gdy kontrolery są dozwolone.")).changed() {
                         session.launch.send(HostCommand::SetMotion(session.view.motion));
                     }
                 });
@@ -1212,10 +1228,10 @@ impl RemotePlayApp {
             changed |= ui
                 .checkbox(
                     &mut self.config.forward_motion,
-                    tr(
-                        "↻ Forward guest motion (Cemuhook UDP)",
-                        "↻ Przekazuj ruch kontrolerów gości (Cemuhook UDP)",
-                    ),
+                    motion_label(tr(
+                        "Forward guest motion (Cemuhook UDP)",
+                        "Przekazuj ruch kontrolerów gości (Cemuhook UDP)",
+                    )),
                 )
                 .on_hover_text(tr("Applies to the next session.", "Od następnej sesji."))
                 .changed();
