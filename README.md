@@ -115,7 +115,7 @@ The session runs in a separate helper process (`remoteplayforever.exe --host-ses
 
 ### Guest motion for emulators
 
-Toggle **↻ Motion** under **Guests may use** during a session, or enable **Forward guest motion (Cemuhook UDP)** in Settings as the default. Motion is forwarded while controller input is allowed. Set the emulator to the same local IPv4 address and port (default: 127.0.0.1:26760). Remote controllers use their Steam gamepad slots 0 through 3. Bind motion for each player in the emulator. For portable builds, place a Windows x64 Steamworks redistributable exporting SteamAPI_InitFlat and SteamInput_v006 (steam_api64.dll) beside the executable. For installer builds, stage it in target/release before packaging.
+Toggle **↻ Motion** under **Guests may use** during a session, or enable **Forward guest motion (Cemuhook UDP)** in Settings as the default. Motion is forwarded while controller input is allowed. Set the emulator to the same local IPv4 address and port (default: 127.0.0.1:26760). Remote controllers use their Steam gamepad slots 0 through 3. Bind motion for each player in the emulator. Both the portable EXE and the installer use Steam Input from the host’s Steam installation.
 
 ### Controller ignored by a non-Steam game?
 

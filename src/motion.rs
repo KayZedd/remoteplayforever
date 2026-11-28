@@ -1,11 +1,14 @@
 use anyhow::{Context, Result, ensure};
-use libloading::Library;
+use libloading::os::windows::Library;
 use std::{
     collections::HashMap,
     ffi::c_void,
     io::ErrorKind,
     net::{SocketAddr, UdpSocket},
     time::{Duration, Instant},
+};
+use windows_sys::Win32::System::LibraryLoader::{
+    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR, LOAD_LIBRARY_SEARCH_SYSTEM32,
 };
 
 const VERSION: u32 = 0x100000;
@@ -21,68 +24,84 @@ struct Motion {
     gyro: [f32; 3],
 }
 
+// Method order is part of the versioned SteamClient023 and SteamInput006 interfaces.
+macro_rules! method {
+    ($object:expr, $index:expr, $signature:ty) => {
+        std::mem::transmute::<*const c_void, $signature>(crate::steam::vfn($object, $index))
+    };
+}
+
 struct SteamInput {
+    client: Input,
+    pipe: i32,
+    user: i32,
     input: Input,
-    callbacks: unsafe extern "C" fn(),
-    frame: unsafe extern "C" fn(Input, bool),
-    handle: unsafe extern "C" fn(Input, i32) -> u64,
-    session: unsafe extern "C" fn(Input, u64) -> u32,
-    motion: unsafe extern "C" fn(Input, u64) -> Motion,
-    stop_input: unsafe extern "C" fn(Input) -> bool,
-    shutdown: unsafe extern "C" fn(),
     _library: Library,
 }
 
 impl SteamInput {
     fn open() -> Result<Self> {
-        let path = std::env::current_exe()?.with_file_name("steam_api64.dll");
+        let steam = crate::steam::SteamInstallation::detect()?;
+        let path = steam.steam_path.join("steamclient64.dll").canonicalize()?;
         unsafe {
-            let lib = Library::new(&path).with_context(|| format!("Load {}", path.display()))?;
-            macro_rules! api {
-                ($name:literal) => {
-                    *lib.get(concat!("SteamAPI_", $name, "\0").as_bytes())?
-                };
-            }
-            let init: unsafe extern "C" fn(*mut i8) -> i32 = api!("InitFlat");
-            let get: unsafe extern "C" fn() -> Input = api!("SteamInput_v006");
-            let start: unsafe extern "C" fn(Input, bool) -> bool = api!("ISteamInput_Init");
+            let library = Library::load_with_flags(
+                &path,
+                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32,
+            )
+            .with_context(|| format!("Load {}", path.display()))?;
+            let create = library
+                .get::<unsafe extern "C" fn(*const i8, *mut i32) -> Input>(b"CreateInterface\0")?;
+            let client = create(c"SteamClient023".as_ptr(), std::ptr::null_mut());
+            ensure!(!client.is_null(), "SteamClient023 unavailable");
+            let pipe = method!(client, 0, unsafe extern "C" fn(Input) -> i32)(client);
+            ensure!(pipe != 0, "Could not open a Steam client pipe");
             let mut api = Self {
+                client,
+                pipe,
+                user: 0,
                 input: std::ptr::null_mut(),
-                callbacks: api!("RunCallbacks"),
-                frame: api!("ISteamInput_RunFrame"),
-                handle: api!("ISteamInput_GetControllerForGamepadIndex"),
-                session: api!("ISteamInput_GetRemotePlaySessionID"),
-                motion: api!("ISteamInput_GetMotionData"),
-                stop_input: api!("ISteamInput_Shutdown"),
-                shutdown: api!("Shutdown"),
-                _library: lib,
+                _library: library,
             };
-            let mut error = [0i8; 1024];
-            ensure!(
-                init(error.as_mut_ptr()) == 0,
-                "Steam API initialization failed"
+            api.user = method!(client, 2, unsafe extern "C" fn(Input, i32) -> i32)(client, pipe);
+            ensure!(api.user != 0, "Sign in to Steam to forward motion");
+            let get_interface = method!(
+                client,
+                12,
+                unsafe extern "C" fn(Input, i32, i32, *const i8) -> Input
             );
-            let input = get();
-            if input.is_null() || !start(input, true) {
-                (api.shutdown)();
-                anyhow::bail!("Steam Input initialization failed");
-            }
+            let input = get_interface(client, api.user, pipe, c"SteamInput006".as_ptr());
+            ensure!(!input.is_null(), "SteamInput006 unavailable");
+            ensure!(
+                method!(input, 0, unsafe extern "C" fn(Input, bool) -> bool)(input, true),
+                "Steam Input initialization failed"
+            );
             api.input = input;
             Ok(api)
         }
     }
 
     fn sample(&self, enabled: bool) -> [Option<Motion>; 4] {
+        let input = self.input;
         unsafe {
-            (self.callbacks)();
-            (self.frame)(self.input, false);
+            method!(input, 3, unsafe extern "C" fn(Input, bool))(input, true);
+            let handle = method!(input, 38, unsafe extern "C" fn(Input, i32) -> u64);
+            let session = method!(input, 45, unsafe extern "C" fn(Input, u64) -> u32);
+            // Win64 C++ returns this 40-byte struct in a caller-owned buffer after the this pointer.
+            let motion = method!(
+                input,
+                29,
+                unsafe extern "C" fn(Input, *mut Motion, u64) -> *mut Motion
+            );
             std::array::from_fn(|slot| {
                 if !enabled {
                     return None;
                 }
-                let pad = (self.handle)(self.input, slot as i32);
-                (pad != 0 && (self.session)(self.input, pad) != 0)
-                    .then(|| (self.motion)(self.input, pad))
+                let pad = handle(input, slot as i32);
+                (pad != 0 && session(input, pad) != 0).then(|| {
+                    let mut sample = std::mem::MaybeUninit::uninit();
+                    motion(input, sample.as_mut_ptr(), pad);
+                    sample.assume_init()
+                })
             })
         }
     }
@@ -90,11 +109,21 @@ impl SteamInput {
 
 impl Drop for SteamInput {
     fn drop(&mut self) {
-        if !self.input.is_null() {
-            unsafe {
-                (self.stop_input)(self.input);
-                (self.shutdown)();
+        unsafe {
+            if !self.input.is_null() {
+                method!(self.input, 1, unsafe extern "C" fn(Input) -> bool)(self.input);
             }
+            if self.user != 0 {
+                method!(self.client, 4, unsafe extern "C" fn(Input, i32, i32))(
+                    self.client,
+                    self.pipe,
+                    self.user,
+                );
+            }
+            method!(self.client, 1, unsafe extern "C" fn(Input, i32) -> bool)(
+                self.client,
+                self.pipe,
+            );
         }
     }
 }
@@ -377,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires a connected Remote Play guest and adjacent Steamworks runtime"]
+    #[ignore = "requires a connected Remote Play guest"]
     fn live_motion_socket() {
         let port = UdpSocket::bind("127.0.0.1:0")
             .unwrap()

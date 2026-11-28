@@ -5,6 +5,10 @@ use winreg::enums::*;
 
 use crate::i18n::tr;
 
+pub(crate) unsafe fn vfn(obj: *mut std::ffi::c_void, index: usize) -> *const std::ffi::c_void {
+    unsafe { *(*(obj as *const *const *const std::ffi::c_void)).add(index) }
+}
+
 #[derive(Debug, Clone)]
 pub struct SteamApp {
     pub appid: u32,

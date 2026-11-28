@@ -17,6 +17,7 @@
 use crate::i18n::tr;
 use crate::runner::log;
 use crate::session::{GuestInputs, HostCommand, HostEvent, InputKind};
+use crate::steam::vfn;
 use std::collections::HashMap;
 use std::ffi::{c_char, c_void};
 use std::io::{BufRead, Write};
@@ -224,10 +225,6 @@ pub fn input_targets(max_invited_guest: u32, guests: &[Guest]) -> Vec<(u64, u32)
 type CreateInterfaceFn = unsafe extern "C" fn(*const c_char, *mut i32) -> *mut c_void;
 type BGetCallbackFn = unsafe extern "C" fn(i32, *mut CallbackMsg) -> u8;
 type FreeLastCallbackFn = unsafe extern "C" fn(i32);
-
-unsafe fn vfn(obj: *mut c_void, index: usize) -> *const c_void {
-    unsafe { *(*(obj as *const *const *const c_void)).add(index) }
-}
 
 struct Host {
     rcm: *mut c_void,
