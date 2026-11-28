@@ -133,7 +133,6 @@ pub struct Bridge {
     steam: SteamInput,
     clients: HashMap<(SocketAddr, usize), Instant>,
     start: Instant,
-    last: Option<Instant>,
     sequence: u32,
 }
 
@@ -223,20 +222,12 @@ impl Bridge {
             steam: SteamInput::open()?,
             clients: HashMap::new(),
             start: Instant::now(),
-            last: None,
             sequence: 0,
         })
     }
 
     pub fn tick(&mut self, enabled: bool) -> Result<()> {
         let now = Instant::now();
-        if self
-            .last
-            .is_some_and(|last| now.duration_since(last) < Duration::from_millis(8))
-        {
-            return Ok(());
-        }
-        self.last = Some(now);
         let pads = self.steam.sample(enabled);
         let id = std::process::id();
         let mut buf = [0u8; 2048];
@@ -374,13 +365,16 @@ pub fn worker(address: &str) -> Result<()> {
     });
     let mut enabled = false;
     loop {
+        let started = Instant::now();
         match rx.try_recv() {
             Ok(value) => enabled = value,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => return Ok(()),
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
         }
         bridge.tick(enabled)?;
-        std::thread::sleep(Duration::from_millis(10));
+        if let Some(remaining) = Duration::from_millis(8).checked_sub(started.elapsed()) {
+            std::thread::sleep(remaining);
+        }
     }
 }
 
